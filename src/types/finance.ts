@@ -5,7 +5,8 @@ export type ExpenseCategory =
   | 'food' 
   | 'transport' 
   | 'health' 
-  | 'lifestyle';
+  | 'lifestyle'
+  | 'vault_withdrawal';
 
 export type IncomeCategory = 
   | 'salary' 

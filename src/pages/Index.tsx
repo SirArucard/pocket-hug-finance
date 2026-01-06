@@ -12,10 +12,12 @@ import { CreditCardWidget } from '@/components/CreditCardWidget';
 import { TransactionForm } from '@/components/TransactionForm';
 import { TransactionList } from '@/components/TransactionList';
 import { ReserveWidget } from '@/components/ReserveWidget';
+import { VaultWidget } from '@/components/VaultWidget';
 import {
   formatCurrency,
   calculateMonthlyTotals,
   calculateAvailableLimit,
+  calculateVaultBalance,
   getCurrentMonth,
   getMonthName,
 } from '@/lib/financeUtils';
@@ -32,15 +34,21 @@ const Index = () => {
   } = useFinanceStore();
 
   const currentMonth = getCurrentMonth();
-  const { income, expenses, fixedExpenses } = useMemo(
+  const { income, salaryIncome, expenses, fixedExpenses, vaultDeposits, vaultWithdrawals } = useMemo(
     () => calculateMonthlyTotals(transactions, currentMonth),
     [transactions, currentMonth]
   );
 
+  const vaultBalance = useMemo(
+    () => calculateVaultBalance(transactions),
+    [transactions]
+  );
+
   const variableExpenses = expenses - fixedExpenses;
-  const reserve = income * (reservePercentage / 100);
+  // Reserve is based ONLY on salary income
+  const reserve = salaryIncome * (reservePercentage / 100);
   const availableLimit = calculateAvailableLimit(
-    income,
+    salaryIncome,
     fixedExpenses,
     variableExpenses,
     reservePercentage
@@ -104,29 +112,30 @@ const Index = () => {
 
         {/* Spending Limit + Credit Card */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2">
-            <SpendingLimitBar
-              available={availableLimit}
-              total={income}
-              reserve={reserve}
-              reservePercentage={reservePercentage}
+          <SpendingLimitBar
+            available={availableLimit}
+            total={salaryIncome}
+            reserve={reserve}
+            reservePercentage={reservePercentage}
+          />
+          <VaultWidget
+            balance={vaultBalance}
+            monthlyDeposits={vaultDeposits}
+            monthlyWithdrawals={vaultWithdrawals}
+          />
+          {creditCards.map((card) => (
+            <CreditCardWidget
+              key={card.id}
+              card={card}
+              onUpdate={updateCreditCard}
             />
-          </div>
-          <div className="space-y-4">
-            {creditCards.map((card) => (
-              <CreditCardWidget
-                key={card.id}
-                card={card}
-                onUpdate={updateCreditCard}
-              />
-            ))}
-          </div>
+          ))}
         </div>
 
         {/* Reserve Widget */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <ReserveWidget
-            income={income}
+            income={salaryIncome}
             reservePercentage={reservePercentage}
             onReserveChange={setReservePercentage}
           />
