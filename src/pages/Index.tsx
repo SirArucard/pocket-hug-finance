@@ -1,9 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Wallet,
   TrendingDown,
   ArrowUpCircle,
   ArrowDownCircle,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { useFinanceStore } from '@/hooks/useFinanceStore';
 import { SummaryCard } from '@/components/SummaryCard';
@@ -13,13 +15,18 @@ import { TransactionForm } from '@/components/TransactionForm';
 import { TransactionList } from '@/components/TransactionList';
 import { ReserveWidget } from '@/components/ReserveWidget';
 import { VaultWidget } from '@/components/VaultWidget';
+import { VoucherCards } from '@/components/VoucherCards';
+import { Button } from '@/components/ui/button';
 import {
   formatCurrency,
   calculateMonthlyTotals,
   calculateAvailableLimit,
   calculateVaultBalance,
+  calculateVoucherBalances,
   getCurrentMonth,
   getMonthName,
+  getPreviousMonth,
+  getNextMonth,
 } from '@/lib/financeUtils';
 
 const Index = () => {
@@ -33,14 +40,21 @@ const Index = () => {
     setReservePercentage,
   } = useFinanceStore();
 
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
   const currentMonth = getCurrentMonth();
+  
   const { income, salaryIncome, expenses, fixedExpenses, vaultDeposits, vaultWithdrawals } = useMemo(
-    () => calculateMonthlyTotals(transactions, currentMonth),
-    [transactions, currentMonth]
+    () => calculateMonthlyTotals(transactions, selectedMonth),
+    [transactions, selectedMonth]
   );
 
   const vaultBalance = useMemo(
     () => calculateVaultBalance(transactions),
+    [transactions]
+  );
+
+  const { foodVoucherBalance, transportVoucherBalance } = useMemo(
+    () => calculateVoucherBalances(transactions),
     [transactions]
   );
 
@@ -56,8 +70,18 @@ const Index = () => {
   const balance = income - expenses;
 
   const monthlyTransactions = transactions.filter((t) =>
-    t.date.startsWith(currentMonth)
+    t.date.startsWith(selectedMonth)
   );
+
+  const handlePreviousMonth = () => {
+    setSelectedMonth(getPreviousMonth(selectedMonth));
+  };
+
+  const handleNextMonth = () => {
+    setSelectedMonth(getNextMonth(selectedMonth));
+  };
+
+  const isCurrentMonth = selectedMonth === currentMonth;
 
   return (
     <div className="min-h-screen bg-background">
@@ -71,9 +95,28 @@ const Index = () => {
               </div>
               <div>
                 <h1 className="text-xl font-bold">Meu Financeiro</h1>
-                <p className="text-sm text-muted-foreground capitalize">
-                  {getMonthName(currentMonth)}
-                </p>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-6 w-6"
+                    onClick={handlePreviousMonth}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <p className="text-sm text-muted-foreground capitalize min-w-[120px] text-center">
+                    {getMonthName(selectedMonth)}
+                  </p>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-6 w-6"
+                    onClick={handleNextMonth}
+                    disabled={isCurrentMonth}
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
             <TransactionForm onSubmit={addTransaction} />
@@ -82,6 +125,12 @@ const Index = () => {
       </header>
 
       <main className="container py-6 space-y-6">
+        {/* Voucher Balances */}
+        <VoucherCards 
+          foodVoucherBalance={foodVoucherBalance}
+          transportVoucherBalance={transportVoucherBalance}
+        />
+
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <SummaryCard

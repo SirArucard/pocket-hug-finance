@@ -75,6 +75,26 @@ export const calculateMonthlyTotals = (transactions: Transaction[], month: strin
     .filter(t => t.type === 'income' && t.category === 'salary')
     .reduce((sum, t) => sum + t.amount, 0);
   
+  // Food voucher income
+  const foodVoucherIncome = monthTransactions
+    .filter(t => t.type === 'income' && t.category === 'food_voucher')
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  // Transport voucher income
+  const transportVoucherIncome = monthTransactions
+    .filter(t => t.type === 'income' && t.category === 'transport_voucher')
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  // Food voucher expenses
+  const foodVoucherExpenses = monthTransactions
+    .filter(t => t.type === 'expense' && t.paymentType === 'food_voucher')
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  // Transport voucher expenses
+  const transportVoucherExpenses = monthTransactions
+    .filter(t => t.type === 'expense' && t.paymentType === 'transport_voucher')
+    .reduce((sum, t) => sum + t.amount, 0);
+  
   // Vault deposits (extra gains)
   const vaultDeposits = monthTransactions
     .filter(t => t.type === 'income' && t.category === 'extra')
@@ -94,7 +114,54 @@ export const calculateMonthlyTotals = (transactions: Transaction[], month: strin
     .filter(t => t.type === 'expense' && t.category === 'fixed_bills')
     .reduce((sum, t) => sum + t.amount, 0);
   
-  return { income, salaryIncome, expenses, fixedExpenses, vaultDeposits, vaultWithdrawals };
+  return { 
+    income, 
+    salaryIncome, 
+    expenses, 
+    fixedExpenses, 
+    vaultDeposits, 
+    vaultWithdrawals,
+    foodVoucherIncome,
+    foodVoucherExpenses,
+    transportVoucherIncome,
+    transportVoucherExpenses,
+  };
+};
+
+// Calculate total voucher balances across all transactions
+export const calculateVoucherBalances = (transactions: Transaction[]) => {
+  const foodVoucherIncome = transactions
+    .filter(t => t.type === 'income' && t.category === 'food_voucher')
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  const foodVoucherExpenses = transactions
+    .filter(t => t.type === 'expense' && t.paymentType === 'food_voucher')
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  const transportVoucherIncome = transactions
+    .filter(t => t.type === 'income' && t.category === 'transport_voucher')
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  const transportVoucherExpenses = transactions
+    .filter(t => t.type === 'expense' && t.paymentType === 'transport_voucher')
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  return {
+    foodVoucherBalance: foodVoucherIncome - foodVoucherExpenses,
+    transportVoucherBalance: transportVoucherIncome - transportVoucherExpenses,
+  };
+};
+
+export const getPreviousMonth = (monthStr: string): string => {
+  const [year, month] = monthStr.split('-').map(Number);
+  const date = new Date(year, month - 2);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+};
+
+export const getNextMonth = (monthStr: string): string => {
+  const [year, month] = monthStr.split('-').map(Number);
+  const date = new Date(year, month);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 };
 
 // Calculate total vault balance across all transactions
