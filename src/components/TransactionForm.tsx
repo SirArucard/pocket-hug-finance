@@ -45,6 +45,7 @@ export const TransactionForm = ({ onSubmit }: TransactionFormProps) => {
     'transport',
     'health',
     'lifestyle',
+    'vault_withdrawal',
   ];
 
   const incomeCategories: IncomeCategory[] = [

@@ -6,8 +6,9 @@ export const categoryLabels: Record<ExpenseCategory | IncomeCategory, string> = 
   transport: 'Transporte',
   health: 'Saúde',
   lifestyle: 'Lazer / Estilo de Vida',
+  vault_withdrawal: 'Cofre (Retirada)',
   salary: 'Salário',
-  extra: 'Ganhos Extras',
+  extra: 'Cofre (Depósito)',
   food_voucher: 'Ticket Alimentação',
   transport_voucher: 'Ticket Mobilidade',
 };
@@ -18,8 +19,9 @@ export const categoryIcons: Record<ExpenseCategory | IncomeCategory, string> = {
   transport: '🚗',
   health: '🏥',
   lifestyle: '🎮',
+  vault_withdrawal: '🔓',
   salary: '💰',
-  extra: '💵',
+  extra: '🔐',
   food_voucher: '🍴',
   transport_voucher: '🚌',
 };
@@ -63,19 +65,49 @@ export const getMonthName = (monthStr: string): string => {
 export const calculateMonthlyTotals = (transactions: Transaction[], month: string) => {
   const monthTransactions = transactions.filter(t => t.date.startsWith(month));
   
+  // Income excluding vault deposits (extra gains)
   const income = monthTransactions
-    .filter(t => t.type === 'income')
+    .filter(t => t.type === 'income' && t.category !== 'extra')
     .reduce((sum, t) => sum + t.amount, 0);
   
+  // Only salary for reserve calculation
+  const salaryIncome = monthTransactions
+    .filter(t => t.type === 'income' && t.category === 'salary')
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  // Vault deposits (extra gains)
+  const vaultDeposits = monthTransactions
+    .filter(t => t.type === 'income' && t.category === 'extra')
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  // Vault withdrawals
+  const vaultWithdrawals = monthTransactions
+    .filter(t => t.type === 'expense' && t.category === 'vault_withdrawal')
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  // Expenses excluding vault withdrawals (they don't affect balance)
   const expenses = monthTransactions
-    .filter(t => t.type === 'expense')
+    .filter(t => t.type === 'expense' && t.category !== 'vault_withdrawal')
     .reduce((sum, t) => sum + t.amount, 0);
   
   const fixedExpenses = monthTransactions
     .filter(t => t.type === 'expense' && t.category === 'fixed_bills')
     .reduce((sum, t) => sum + t.amount, 0);
   
-  return { income, expenses, fixedExpenses };
+  return { income, salaryIncome, expenses, fixedExpenses, vaultDeposits, vaultWithdrawals };
+};
+
+// Calculate total vault balance across all transactions
+export const calculateVaultBalance = (transactions: Transaction[]) => {
+  const deposits = transactions
+    .filter(t => t.type === 'income' && t.category === 'extra')
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  const withdrawals = transactions
+    .filter(t => t.type === 'expense' && t.category === 'vault_withdrawal')
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  return deposits - withdrawals;
 };
 
 export const calculateAvailableLimit = (
