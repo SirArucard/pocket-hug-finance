@@ -6,8 +6,9 @@ import {
   ArrowDownCircle,
   ChevronLeft,
   ChevronRight,
+  Loader2,
 } from 'lucide-react';
-import { useFinanceStore } from '@/hooks/useFinanceStore';
+import { useSupabaseFinance } from '@/hooks/useSupabaseFinance';
 import { SummaryCard } from '@/components/SummaryCard';
 import { SpendingLimitBar } from '@/components/SpendingLimitBar';
 import { CreditCardWidget } from '@/components/CreditCardWidget';
@@ -16,6 +17,7 @@ import { TransactionList } from '@/components/TransactionList';
 import { ReserveWidget } from '@/components/ReserveWidget';
 import { VaultWidget } from '@/components/VaultWidget';
 import { VoucherCards } from '@/components/VoucherCards';
+import { PrivacyToggle } from '@/components/PrivacyToggle';
 import { Button } from '@/components/ui/button';
 import {
   formatCurrency,
@@ -34,11 +36,14 @@ const Index = () => {
     transactions,
     creditCards,
     reservePercentage,
+    loading,
     addTransaction,
     removeTransaction,
     updateCreditCard,
     setReservePercentage,
-  } = useFinanceStore();
+    payInvoice,
+    transferToVault,
+  } = useSupabaseFinance();
 
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
   const currentMonth = getCurrentMonth();
@@ -69,6 +74,9 @@ const Index = () => {
   );
   const balance = income - expenses;
 
+  // Calculate salary balance for invoice payment
+  const salaryBalance = salaryIncome - expenses;
+
   const monthlyTransactions = transactions.filter((t) =>
     t.date.startsWith(selectedMonth)
   );
@@ -82,6 +90,17 @@ const Index = () => {
   };
 
   const isCurrentMonth = selectedMonth === currentMonth;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex items-center gap-3 text-muted-foreground">
+          <Loader2 className="w-6 h-6 animate-spin" />
+          <span>Carregando dados...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -119,7 +138,10 @@ const Index = () => {
                 </div>
               </div>
             </div>
-            <TransactionForm onSubmit={addTransaction} />
+            <div className="flex items-center gap-2">
+              <PrivacyToggle />
+              <TransactionForm onSubmit={addTransaction} />
+            </div>
           </div>
         </div>
       </header>
@@ -138,6 +160,7 @@ const Index = () => {
             value={formatCurrency(income)}
             icon={<ArrowUpCircle className="w-5 h-5" />}
             variant="income"
+            blurOnIncome
           />
           <SummaryCard
             title="Saídas"
@@ -156,6 +179,7 @@ const Index = () => {
             value={formatCurrency(balance)}
             icon={<Wallet className="w-5 h-5" />}
             variant={balance >= 0 ? 'income' : 'expense'}
+            blurOnIncome
           />
         </div>
 
@@ -177,6 +201,9 @@ const Index = () => {
               key={card.id}
               card={card}
               onUpdate={updateCreditCard}
+              onPayInvoice={payInvoice}
+              vaultBalance={vaultBalance}
+              salaryBalance={salaryBalance}
             />
           ))}
         </div>
@@ -187,6 +214,7 @@ const Index = () => {
             income={salaryIncome}
             reservePercentage={reservePercentage}
             onReserveChange={setReservePercentage}
+            onTransferToVault={transferToVault}
           />
         </div>
 

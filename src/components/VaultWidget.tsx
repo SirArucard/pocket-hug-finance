@@ -1,6 +1,7 @@
 import { Lock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency } from '@/lib/financeUtils';
+import { BlurredValue } from '@/components/BlurredValue';
 
 interface VaultWidgetProps {
   balance: number;
@@ -23,20 +24,20 @@ export const VaultWidget = ({ balance, monthlyDeposits, monthlyWithdrawals }: Va
         <div>
           <p className="text-sm text-muted-foreground">Saldo Total</p>
           <p className="text-2xl font-bold text-amber-500">
-            {formatCurrency(balance)}
+            <BlurredValue value={formatCurrency(balance)} blurOnIncome />
           </p>
         </div>
         <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border/50">
           <div>
             <p className="text-xs text-muted-foreground">Depósitos (mês)</p>
             <p className="text-sm font-medium text-income">
-              +{formatCurrency(monthlyDeposits)}
+              +<BlurredValue value={formatCurrency(monthlyDeposits)} blurOnIncome />
             </p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Retiradas (mês)</p>
             <p className="text-sm font-medium text-expense">
-              -{formatCurrency(monthlyWithdrawals)}
+              -<BlurredValue value={formatCurrency(monthlyWithdrawals)} />
             </p>
           </div>
         </div>
