@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { BlurredValue } from '@/components/BlurredValue';
 
 interface SummaryCardProps {
   title: string;
@@ -7,6 +8,7 @@ interface SummaryCardProps {
   icon: ReactNode;
   variant?: 'default' | 'income' | 'expense' | 'warning' | 'neutral';
   subtitle?: string;
+  blurOnIncome?: boolean;
 }
 
 export const SummaryCard = ({
@@ -15,6 +17,7 @@ export const SummaryCard = ({
   icon,
   variant = 'default',
   subtitle,
+  blurOnIncome = false,
 }: SummaryCardProps) => {
   const variantStyles = {
     default: 'border-border/50',
@@ -45,7 +48,7 @@ export const SummaryCard = ({
             {title}
           </p>
           <p className={cn('text-xl sm:text-2xl font-bold', textStyles[variant])}>
-            {value}
+            <BlurredValue value={value} blurOnIncome={blurOnIncome} />
           </p>
           {subtitle && (
             <p className="text-xs text-muted-foreground">{subtitle}</p>

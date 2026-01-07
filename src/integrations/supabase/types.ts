@@ -14,7 +14,113 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      credit_cards: {
+        Row: {
+          card_limit: number
+          closing_day: number
+          created_at: string
+          due_day: number
+          id: string
+          name: string
+          updated_at: string
+          used_limit: number
+        }
+        Insert: {
+          card_limit?: number
+          closing_day?: number
+          created_at?: string
+          due_day?: number
+          id?: string
+          name?: string
+          updated_at?: string
+          used_limit?: number
+        }
+        Update: {
+          card_limit?: number
+          closing_day?: number
+          created_at?: string
+          due_day?: number
+          id?: string
+          name?: string
+          updated_at?: string
+          used_limit?: number
+        }
+        Relationships: []
+      }
+      settings: {
+        Row: {
+          created_at: string
+          id: string
+          reserve_percentage: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          reserve_percentage?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          reserve_percentage?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          amount: number
+          category: string
+          created_at: string
+          current_installment: number | null
+          date: string
+          id: string
+          installments: number | null
+          name: string
+          parent_id: string | null
+          payment_type: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          category: string
+          created_at?: string
+          current_installment?: number | null
+          date?: string
+          id?: string
+          installments?: number | null
+          name: string
+          parent_id?: string | null
+          payment_type?: string | null
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          created_at?: string
+          current_installment?: number | null
+          date?: string
+          id?: string
+          installments?: number | null
+          name?: string
+          parent_id?: string | null
+          payment_type?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
