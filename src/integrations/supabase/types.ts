@@ -24,6 +24,7 @@ export type Database = {
           name: string
           updated_at: string
           used_limit: number
+          user_id: string | null
         }
         Insert: {
           card_limit?: number
@@ -34,6 +35,7 @@ export type Database = {
           name?: string
           updated_at?: string
           used_limit?: number
+          user_id?: string | null
         }
         Update: {
           card_limit?: number
@@ -44,6 +46,7 @@ export type Database = {
           name?: string
           updated_at?: string
           used_limit?: number
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -53,18 +56,21 @@ export type Database = {
           id: string
           reserve_percentage: number
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string
           id?: string
           reserve_percentage?: number
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string
           id?: string
           reserve_percentage?: number
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -82,6 +88,7 @@ export type Database = {
           payment_type: string | null
           type: string
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           amount: number
@@ -96,6 +103,7 @@ export type Database = {
           payment_type?: string | null
           type: string
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           amount?: number
@@ -110,6 +118,7 @@ export type Database = {
           payment_type?: string | null
           type?: string
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: [
           {

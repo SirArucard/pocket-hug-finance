@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Transaction, CreditCard, FinanceState } from '@/types/finance';
 import { generateInstallmentTransactions, generateId } from '@/lib/financeUtils';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { z } from 'zod';
 
 // Validation schemas
@@ -103,17 +104,24 @@ export const useSupabaseFinance = () => {
   const [loading, setLoading] = useState(true);
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
 
-  // Fetch all data on mount
+  // Fetch all data on mount or when user changes
   useEffect(() => {
     const fetchData = async () => {
+      if (!user) {
+        setState({ transactions: [], creditCards: [], reservePercentage: 10 });
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         
         const [transactionsRes, creditCardsRes, settingsRes] = await Promise.all([
-          supabase.from('transactions').select('*').order('date', { ascending: false }),
-          supabase.from('credit_cards').select('*'),
-          supabase.from('settings').select('*').limit(1).maybeSingle(),
+          supabase.from('transactions').select('*').eq('user_id', user.id).order('date', { ascending: false }),
+          supabase.from('credit_cards').select('*').eq('user_id', user.id),
+          supabase.from('settings').select('*').eq('user_id', user.id).limit(1).maybeSingle(),
         ]);
 
         if (transactionsRes.error) throw transactionsRes.error;
@@ -121,11 +129,47 @@ export const useSupabaseFinance = () => {
         if (settingsRes.error) throw settingsRes.error;
 
         const transactions = (transactionsRes.data || []).map(mapDbToTransaction);
-        const creditCards = (creditCardsRes.data || []).map(mapDbToCreditCard);
-        const reservePercentage = settingsRes.data?.reserve_percentage ?? 10;
+        let creditCards = (creditCardsRes.data || []).map(mapDbToCreditCard);
+        let reservePercentage = settingsRes.data?.reserve_percentage ?? 10;
         
         if (settingsRes.data) {
           setSettingsId(settingsRes.data.id);
+        }
+
+        // Create default credit card and settings if they don't exist for new users
+        if (creditCards.length === 0) {
+          const cardId = generateId();
+          const { error } = await supabase.from('credit_cards').insert({
+            id: cardId,
+            name: 'Cartão Principal',
+            card_limit: 5000,
+            used_limit: 0,
+            closing_day: 15,
+            due_day: 25,
+            user_id: user.id,
+          });
+          if (!error) {
+            creditCards = [{
+              id: cardId,
+              name: 'Cartão Principal',
+              limit: 5000,
+              usedLimit: 0,
+              closingDay: 15,
+              dueDay: 25,
+            }];
+          }
+        }
+
+        if (!settingsRes.data) {
+          const settingsIdNew = generateId();
+          const { error } = await supabase.from('settings').insert({
+            id: settingsIdNew,
+            reserve_percentage: 10,
+            user_id: user.id,
+          });
+          if (!error) {
+            setSettingsId(settingsIdNew);
+          }
         }
 
         setState({
@@ -134,7 +178,9 @@ export const useSupabaseFinance = () => {
           reservePercentage,
         });
       } catch (error) {
-        console.error('Error fetching data:', error);
+        if (import.meta.env.DEV) {
+          console.error('Error fetching data:', error);
+        }
         toast({
           title: 'Erro',
           description: 'Falha ao carregar dados. Por favor, recarregue a página.',
@@ -146,7 +192,7 @@ export const useSupabaseFinance = () => {
     };
 
     fetchData();
-  }, [toast]);
+  }, [toast, user]);
 
   const addTransaction = useCallback(async (
     transaction: Omit<Transaction, 'id'>,
@@ -178,6 +224,15 @@ export const useSupabaseFinance = () => {
         }
       }
 
+      if (!user) {
+        toast({
+          title: 'Erro',
+          description: 'Você precisa estar logado para adicionar transações.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       if (installments && installments > 1 && transaction.paymentType === 'credit') {
         const installmentTransactions = generateInstallmentTransactions(transaction, installments);
         
@@ -192,6 +247,7 @@ export const useSupabaseFinance = () => {
           installments: t.installments || null,
           current_installment: t.currentInstallment || null,
           parent_id: t.parentId || null,
+          user_id: user.id,
         }));
 
         const { error } = await supabase.from('transactions').insert(dbTransactions);
@@ -221,6 +277,7 @@ export const useSupabaseFinance = () => {
           type: transaction.type,
           payment_type: transaction.paymentType || null,
           date: transaction.date,
+          user_id: user.id,
         });
 
         if (error) throw error;
@@ -246,7 +303,7 @@ export const useSupabaseFinance = () => {
         variant: 'destructive',
       });
     }
-  }, [toast]);
+  }, [toast, user]);
 
   const removeTransaction = useCallback(async (id: string) => {
     try {
@@ -298,7 +355,9 @@ export const useSupabaseFinance = () => {
         description: 'Lançamento removido com sucesso!',
       });
     } catch (error) {
-      console.error('Error removing transaction:', error);
+      if (import.meta.env.DEV) {
+        console.error('Error removing transaction:', error);
+      }
       toast({
         title: 'Erro',
         description: 'Falha ao remover lançamento.',
@@ -319,7 +378,9 @@ export const useSupabaseFinance = () => {
       .eq('id', card.id);
 
     if (error) {
-      console.error('Error updating credit card:', error);
+      if (import.meta.env.DEV) {
+        console.error('Error updating credit card:', error);
+      }
       return;
     }
 
@@ -423,6 +484,15 @@ export const useSupabaseFinance = () => {
         return false;
       }
 
+      if (!user) {
+        toast({
+          title: 'Erro',
+          description: 'Você precisa estar logado.',
+          variant: 'destructive',
+        });
+        return false;
+      }
+
       const card = state.creditCards[0];
       if (!card) return false;
 
@@ -438,6 +508,7 @@ export const useSupabaseFinance = () => {
         type: 'expense' as const,
         payment_type: 'debit',
         date: today,
+        user_id: user.id,
       };
 
       const { error: transError } = await supabase.from('transactions').insert(transaction);
@@ -480,7 +551,7 @@ export const useSupabaseFinance = () => {
       });
       return false;
     }
-  }, [state.creditCards, toast]);
+  }, [state.creditCards, toast, user]);
 
   const transferToVault = useCallback(async (amount: number) => {
     try {
@@ -491,6 +562,15 @@ export const useSupabaseFinance = () => {
         toast({
           title: 'Erro de validação',
           description: errorMessage,
+          variant: 'destructive',
+        });
+        return false;
+      }
+
+      if (!user) {
+        toast({
+          title: 'Erro',
+          description: 'Você precisa estar logado.',
           variant: 'destructive',
         });
         return false;
@@ -507,6 +587,7 @@ export const useSupabaseFinance = () => {
         type: 'income' as const,
         payment_type: null,
         date: today,
+        user_id: user.id,
       };
 
       const { error } = await supabase.from('transactions').insert(transaction);
@@ -541,7 +622,7 @@ export const useSupabaseFinance = () => {
       });
       return false;
     }
-  }, [toast]);
+  }, [toast, user]);
 
   return {
     ...state,
