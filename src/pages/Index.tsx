@@ -7,8 +7,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  LogOut,
 } from 'lucide-react';
 import { useSupabaseFinance } from '@/hooks/useSupabaseFinance';
+import { useAuth } from '@/hooks/useAuth';
 import { SummaryCard } from '@/components/SummaryCard';
 import { SpendingLimitBar } from '@/components/SpendingLimitBar';
 import { CreditCardWidget } from '@/components/CreditCardWidget';
@@ -44,6 +46,8 @@ const Index = () => {
     payInvoice,
     transferToVault,
   } = useSupabaseFinance();
+
+  const { signOut } = useAuth();
 
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
   const currentMonth = getCurrentMonth();
@@ -141,6 +145,9 @@ const Index = () => {
             <div className="flex items-center gap-2">
               <PrivacyToggle />
               <TransactionForm onSubmit={addTransaction} />
+              <Button variant="ghost" size="icon" onClick={() => signOut()} title="Sair">
+                <LogOut className="w-5 h-5" />
+              </Button>
             </div>
           </div>
         </div>
