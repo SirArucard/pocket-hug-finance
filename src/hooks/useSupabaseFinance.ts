@@ -3,6 +3,47 @@ import { supabase } from '@/integrations/supabase/client';
 import { Transaction, CreditCard, FinanceState } from '@/types/finance';
 import { generateInstallmentTransactions, generateId } from '@/lib/financeUtils';
 import { useToast } from '@/hooks/use-toast';
+import { z } from 'zod';
+
+// Validation schemas
+const transactionSchema = z.object({
+  name: z.string().trim().min(1, 'Nome é obrigatório').max(200, 'Nome muito longo'),
+  amount: z.number().positive('Valor deve ser positivo').max(1000000000, 'Valor muito alto'),
+  category: z.enum([
+    'salary', 'extra', 'fixed_bills', 'food', 'leisure', 
+    'transportation', 'health', 'personal', 'other', 'vault_withdrawal'
+  ], { errorMap: () => ({ message: 'Categoria inválida' }) }),
+  type: z.enum(['income', 'expense'], { errorMap: () => ({ message: 'Tipo inválido' }) }),
+  paymentType: z.enum(['debit', 'credit', 'pix']).nullable().optional(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida').refine((date) => {
+    const d = new Date(date);
+    const now = new Date();
+    const minDate = new Date(now.getFullYear() - 10, 0, 1);
+    const maxDate = new Date(now.getFullYear() + 10, 11, 31);
+    return d >= minDate && d <= maxDate;
+  }, 'Data fora do intervalo permitido'),
+});
+
+const installmentsSchema = z.number().int().min(1).max(48).optional();
+
+const payInvoiceSchema = z.object({
+  amount: z.number().positive('Valor deve ser positivo').max(1000000000, 'Valor muito alto'),
+  source: z.enum(['salary', 'vault'], { errorMap: () => ({ message: 'Origem inválida' }) }),
+});
+
+const transferSchema = z.object({
+  amount: z.number().positive('Valor deve ser positivo').max(1000000000, 'Valor muito alto'),
+});
+
+const creditCardUpdateSchema = z.object({
+  limit: z.number().positive().max(1000000000).optional(),
+  usedLimit: z.number().min(0).max(1000000000).optional(),
+  name: z.string().trim().min(1).max(100).optional(),
+  closingDay: z.number().int().min(1).max(31).optional(),
+  dueDay: z.number().int().min(1).max(31).optional(),
+});
+
+const reservePercentageSchema = z.number().int().min(0).max(100);
 
 interface DbTransaction {
   id: string;
@@ -112,6 +153,31 @@ export const useSupabaseFinance = () => {
     installments?: number
   ) => {
     try {
+      // Validate transaction input
+      const validationResult = transactionSchema.safeParse(transaction);
+      if (!validationResult.success) {
+        const errorMessage = validationResult.error.errors.map(e => e.message).join(', ');
+        toast({
+          title: 'Erro de validação',
+          description: errorMessage,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Validate installments if provided
+      if (installments !== undefined) {
+        const installmentsResult = installmentsSchema.safeParse(installments);
+        if (!installmentsResult.success) {
+          toast({
+            title: 'Erro de validação',
+            description: 'Número de parcelas inválido (1-48)',
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
+
       if (installments && installments > 1 && transaction.paymentType === 'credit') {
         const installmentTransactions = generateInstallmentTransactions(transaction, installments);
         
@@ -174,7 +240,6 @@ export const useSupabaseFinance = () => {
         description: 'Lançamento adicionado com sucesso!',
       });
     } catch (error) {
-      console.error('Error adding transaction:', error);
       toast({
         title: 'Erro',
         description: 'Falha ao adicionar lançamento.',
@@ -268,6 +333,18 @@ export const useSupabaseFinance = () => {
 
   const updateCreditCard = useCallback(async (id: string, updates: Partial<CreditCard>) => {
     try {
+      // Validate credit card updates
+      const validationResult = creditCardUpdateSchema.safeParse(updates);
+      if (!validationResult.success) {
+        const errorMessage = validationResult.error.errors.map(e => e.message).join(', ');
+        toast({
+          title: 'Erro de validação',
+          description: errorMessage,
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const dbUpdates: Partial<DbCreditCard> = {};
       if (updates.limit !== undefined) dbUpdates.card_limit = updates.limit;
       if (updates.usedLimit !== undefined) dbUpdates.used_limit = updates.usedLimit;
@@ -289,7 +366,6 @@ export const useSupabaseFinance = () => {
         ),
       }));
     } catch (error) {
-      console.error('Error updating credit card:', error);
       toast({
         title: 'Erro',
         description: 'Falha ao atualizar cartão.',
@@ -300,6 +376,17 @@ export const useSupabaseFinance = () => {
 
   const setReservePercentage = useCallback(async (percentage: number) => {
     try {
+      // Validate percentage
+      const validationResult = reservePercentageSchema.safeParse(percentage);
+      if (!validationResult.success) {
+        toast({
+          title: 'Erro de validação',
+          description: 'Porcentagem deve ser entre 0 e 100',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       if (settingsId) {
         const { error } = await supabase
           .from('settings')
@@ -314,7 +401,6 @@ export const useSupabaseFinance = () => {
         reservePercentage: percentage,
       }));
     } catch (error) {
-      console.error('Error updating reserve percentage:', error);
       toast({
         title: 'Erro',
         description: 'Falha ao atualizar porcentagem da reserva.',
@@ -325,8 +411,20 @@ export const useSupabaseFinance = () => {
 
   const payInvoice = useCallback(async (amount: number, source: 'salary' | 'vault') => {
     try {
+      // Validate input
+      const validationResult = payInvoiceSchema.safeParse({ amount, source });
+      if (!validationResult.success) {
+        const errorMessage = validationResult.error.errors.map(e => e.message).join(', ');
+        toast({
+          title: 'Erro de validação',
+          description: errorMessage,
+          variant: 'destructive',
+        });
+        return false;
+      }
+
       const card = state.creditCards[0];
-      if (!card) return;
+      if (!card) return false;
 
       // Create a transaction for the payment
       const transactionId = generateId();
@@ -375,7 +473,6 @@ export const useSupabaseFinance = () => {
 
       return true;
     } catch (error) {
-      console.error('Error paying invoice:', error);
       toast({
         title: 'Erro',
         description: 'Falha ao pagar fatura.',
@@ -387,6 +484,18 @@ export const useSupabaseFinance = () => {
 
   const transferToVault = useCallback(async (amount: number) => {
     try {
+      // Validate input
+      const validationResult = transferSchema.safeParse({ amount });
+      if (!validationResult.success) {
+        const errorMessage = validationResult.error.errors.map(e => e.message).join(', ');
+        toast({
+          title: 'Erro de validação',
+          description: errorMessage,
+          variant: 'destructive',
+        });
+        return false;
+      }
+
       const transactionId = generateId();
       const today = new Date().toISOString().split('T')[0];
       
@@ -425,7 +534,6 @@ export const useSupabaseFinance = () => {
 
       return true;
     } catch (error) {
-      console.error('Error transferring to vault:', error);
       toast({
         title: 'Erro',
         description: 'Falha ao transferir para o cofre.',
