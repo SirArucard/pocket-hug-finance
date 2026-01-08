@@ -45,6 +45,7 @@ const Index = () => {
     setReservePercentage,
     payInvoice,
     transferToVault,
+    withdrawFromVault,
   } = useSupabaseFinance();
 
   const { signOut } = useAuth();
@@ -202,6 +203,7 @@ const Index = () => {
             balance={vaultBalance}
             monthlyDeposits={vaultDeposits}
             monthlyWithdrawals={vaultWithdrawals}
+            onWithdraw={withdrawFromVault}
           />
           {creditCards.map((card) => (
             <CreditCardWidget

@@ -11,11 +11,11 @@ const transactionSchema = z.object({
   name: z.string().trim().min(1, 'Nome é obrigatório').max(200, 'Nome muito longo'),
   amount: z.number().positive('Valor deve ser positivo').max(1000000000, 'Valor muito alto'),
   category: z.enum([
-    'salary', 'extra', 'fixed_bills', 'food', 'leisure', 
-    'transportation', 'health', 'personal', 'other', 'vault_withdrawal'
+    'salary', 'extra', 'food_voucher', 'transport_voucher',
+    'fixed_bills', 'food', 'transport', 'health', 'lifestyle', 'vault_withdrawal'
   ], { errorMap: () => ({ message: 'Categoria inválida' }) }),
   type: z.enum(['income', 'expense'], { errorMap: () => ({ message: 'Tipo inválido' }) }),
-  paymentType: z.enum(['debit', 'credit', 'pix']).nullable().optional(),
+  paymentType: z.enum(['debit', 'credit', 'food_voucher', 'transport_voucher']).nullable().optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida').refine((date) => {
     const d = new Date(date);
     const now = new Date();
@@ -624,6 +624,78 @@ export const useSupabaseFinance = () => {
     }
   }, [toast, user]);
 
+  const withdrawFromVault = useCallback(async (amount: number) => {
+    try {
+      // Validate input
+      const validationResult = transferSchema.safeParse({ amount });
+      if (!validationResult.success) {
+        const errorMessage = validationResult.error.errors.map(e => e.message).join(', ');
+        toast({
+          title: 'Erro de validação',
+          description: errorMessage,
+          variant: 'destructive',
+        });
+        return false;
+      }
+
+      if (!user) {
+        toast({
+          title: 'Erro',
+          description: 'Você precisa estar logado.',
+          variant: 'destructive',
+        });
+        return false;
+      }
+
+      const transactionId = generateId();
+      const today = new Date().toISOString().split('T')[0];
+      
+      const transaction = {
+        id: transactionId,
+        name: 'Retirada do Cofre',
+        amount: amount,
+        category: 'vault_withdrawal',
+        type: 'expense' as const,
+        payment_type: 'debit',
+        date: today,
+        user_id: user.id,
+      };
+
+      const { error } = await supabase.from('transactions').insert(transaction);
+      if (error) throw error;
+
+      setState((prev) => ({
+        ...prev,
+        transactions: [
+          {
+            id: transactionId,
+            name: 'Retirada do Cofre',
+            amount: amount,
+            category: 'vault_withdrawal',
+            type: 'expense',
+            paymentType: 'debit',
+            date: today,
+          } as Transaction,
+          ...prev.transactions,
+        ],
+      }));
+
+      toast({
+        title: 'Sucesso',
+        description: 'Valor retirado do Cofre e adicionado à conta principal!',
+      });
+
+      return true;
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: 'Falha ao retirar do cofre.',
+        variant: 'destructive',
+      });
+      return false;
+    }
+  }, [toast, user]);
+
   return {
     ...state,
     loading,
@@ -633,5 +705,6 @@ export const useSupabaseFinance = () => {
     setReservePercentage,
     payInvoice,
     transferToVault,
+    withdrawFromVault,
   };
 };

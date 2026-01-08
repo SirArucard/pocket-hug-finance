@@ -9,7 +9,19 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -39,8 +51,9 @@ export const CreditCardWidget = ({
 }: CreditCardWidgetProps) => {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isPayOpen, setIsPayOpen] = useState(false);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [limit, setLimit] = useState(card.limit.toString());
-  const [showInvoice, setShowInvoice] = useState(false);
+  const [showInvoice, setShowInvoice] = useState(true);
   const [payAmount, setPayAmount] = useState('');
   const [paySource, setPaySource] = useState<'salary' | 'vault'>('salary');
   
@@ -60,7 +73,11 @@ export const CreditCardWidget = ({
     setIsEditOpen(false);
   };
 
-  const handlePayInvoice = async () => {
+  const handlePayClick = () => {
+    setIsConfirmOpen(true);
+  };
+
+  const handleConfirmPayment = async () => {
     if (!onPayInvoice) return;
     
     const amount = parseFloat(payAmount) || card.usedLimit;
@@ -69,6 +86,9 @@ export const CreditCardWidget = ({
     if (success) {
       setPayAmount('');
       setIsPayOpen(false);
+      setIsConfirmOpen(false);
+    } else {
+      setIsConfirmOpen(false);
     }
   };
 
@@ -125,12 +145,19 @@ export const CreditCardWidget = ({
         </div>
 
         <div className="space-y-3">
+          {/* Fatura Atual */}
           <div>
-            <p className="text-xs text-white/70 uppercase tracking-wide">
-              {showInvoice ? 'Fatura Atual' : 'Limite Disponível'}
+            <p className="text-xs text-white/70 uppercase tracking-wide">Fatura Atual</p>
+            <p className="text-2xl font-bold text-expense">
+              <BlurredValue value={formatCurrency(card.usedLimit)} />
             </p>
-            <p className="text-2xl font-bold">
-              <BlurredValue value={formatCurrency(showInvoice ? card.usedLimit : available)} />
+          </div>
+
+          {/* Limite Disponível */}
+          <div>
+            <p className="text-xs text-white/70 uppercase tracking-wide">Limite Disponível</p>
+            <p className="text-xl font-semibold">
+              <BlurredValue value={formatCurrency(available)} />
             </p>
           </div>
 
@@ -166,10 +193,13 @@ export const CreditCardWidget = ({
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Pagar Fatura</DialogTitle>
+                  <DialogDescription>
+                    Informe o valor e a origem do pagamento.
+                  </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 pt-4">
                   <div className="space-y-2">
-                    <Label>Valor pago?</Label>
+                    <Label>Valor a pagar</Label>
                     <Input
                       type="number"
                       step="0.01"
@@ -183,7 +213,7 @@ export const CreditCardWidget = ({
                   </div>
                   
                   <div className="space-y-2">
-                    <Label>Origem do dinheiro?</Label>
+                    <Label>Origem do pagamento</Label>
                     <Select value={paySource} onValueChange={(v) => setPaySource(v as 'salary' | 'vault')}>
                       <SelectTrigger>
                         <SelectValue />
@@ -199,13 +229,31 @@ export const CreditCardWidget = ({
                     </Select>
                   </div>
 
-                  <Button onClick={handlePayInvoice} className="w-full">
-                    Confirmar Pagamento
+                  <Button onClick={handlePayClick} className="w-full">
+                    Pagar Fatura
                   </Button>
                 </div>
               </DialogContent>
             </Dialog>
           )}
+
+          {/* Confirmation Dialog */}
+          <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Confirmar Pagamento</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Deseja confirmar o pagamento de {formatCurrency(parseFloat(payAmount) || card.usedLimit)} da fatura usando {paySource === 'salary' ? 'Salário' : 'Cofre'}?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleConfirmPayment}>
+                  Confirmar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
     </div>
