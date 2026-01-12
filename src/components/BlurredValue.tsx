@@ -1,16 +1,16 @@
-import { usePrivacy } from '@/contexts/PrivacyContext';
+import { usePrivacy, PrivacyCategory } from '@/contexts/PrivacyContext';
 import { cn } from '@/lib/utils';
 
 interface BlurredValueProps {
   value: string;
-  blurOnIncome?: boolean; // True if this should blur when hideIncome is on (for Entradas, Cofre, Saldo)
+  category?: PrivacyCategory;
   className?: string;
 }
 
-export const BlurredValue = ({ value, blurOnIncome = false, className }: BlurredValueProps) => {
-  const { hideIncome, hideAll } = usePrivacy();
+export const BlurredValue = ({ value, category, className }: BlurredValueProps) => {
+  const { isHidden } = usePrivacy();
 
-  const shouldBlur = hideAll || (blurOnIncome && hideIncome);
+  const shouldBlur = category ? isHidden(category) : false;
 
   return (
     <span

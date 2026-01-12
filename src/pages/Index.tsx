@@ -77,7 +77,10 @@ const Index = () => {
     variableExpenses,
     reservePercentage
   );
-  const balance = income - expenses;
+  
+  // CORREÇÃO: Saldo e Entradas NÃO incluem tickets (já excluído no cálculo de income)
+  // income já exclui vouchers pois só conta salary e outras rendas não-voucher
+  const balance = salaryIncome - expenses;
 
   // Calculate salary balance for invoice payment
   const salaryBalance = salaryIncome - expenses;
@@ -165,29 +168,35 @@ const Index = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <SummaryCard
             title="Entradas"
-            value={formatCurrency(income)}
+            value={formatCurrency(salaryIncome)}
             icon={<ArrowUpCircle className="w-5 h-5" />}
             variant="income"
-            blurOnIncome
+            privacyCategory="income"
+            privacyLabel="Entradas"
           />
           <SummaryCard
             title="Saídas"
             value={formatCurrency(expenses)}
             icon={<ArrowDownCircle className="w-5 h-5" />}
             variant="expense"
+            privacyCategory="expenses"
+            privacyLabel="Saídas"
           />
           <SummaryCard
             title="Gastos Fixos"
             value={formatCurrency(fixedExpenses)}
             icon={<TrendingDown className="w-5 h-5" />}
             variant="neutral"
+            privacyCategory="fixed"
+            privacyLabel="Gastos Fixos"
           />
           <SummaryCard
             title="Saldo"
             value={formatCurrency(balance)}
             icon={<Wallet className="w-5 h-5" />}
             variant={balance >= 0 ? 'income' : 'expense'}
-            blurOnIncome
+            privacyCategory="balance"
+            privacyLabel="Saldo"
           />
         </div>
 

@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { formatCurrency } from '@/lib/financeUtils';
 import { BlurredValue } from '@/components/BlurredValue';
+import { CategoryPrivacyToggle } from '@/components/CategoryPrivacyToggle';
 import { useState } from 'react';
 
 interface VaultWidgetProps {
@@ -72,26 +73,27 @@ export const VaultWidget = ({
             <Lock className="w-4 h-4 text-amber-500" />
           </div>
           Cofre
+          <CategoryPrivacyToggle category="vault" label="Cofre" />
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div>
           <p className="text-sm text-muted-foreground">Saldo Total</p>
           <p className="text-2xl font-bold text-amber-500">
-            <BlurredValue value={formatCurrency(balance)} blurOnIncome />
+            <BlurredValue value={formatCurrency(balance)} category="vault" />
           </p>
         </div>
         <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border/50">
           <div>
             <p className="text-xs text-muted-foreground">Depósitos (mês)</p>
             <p className="text-sm font-medium text-income">
-              +<BlurredValue value={formatCurrency(monthlyDeposits)} blurOnIncome />
+              +<BlurredValue value={formatCurrency(monthlyDeposits)} category="vault" />
             </p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Retiradas (mês)</p>
             <p className="text-sm font-medium text-expense">
-              -<BlurredValue value={formatCurrency(monthlyWithdrawals)} />
+              -<BlurredValue value={formatCurrency(monthlyWithdrawals)} category="vault" />
             </p>
           </div>
         </div>

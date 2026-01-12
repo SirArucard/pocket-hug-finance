@@ -1,23 +1,44 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
 
+export type PrivacyCategory = 'income' | 'expenses' | 'fixed' | 'balance' | 'vault' | 'vouchers' | 'creditCard';
+
 interface PrivacyContextType {
-  hideIncome: boolean;
   hideAll: boolean;
-  toggleHideIncome: () => void;
+  hiddenCategories: Set<PrivacyCategory>;
   toggleHideAll: () => void;
+  toggleCategory: (category: PrivacyCategory) => void;
+  isHidden: (category: PrivacyCategory) => boolean;
 }
 
 const PrivacyContext = createContext<PrivacyContextType | undefined>(undefined);
 
 export const PrivacyProvider = ({ children }: { children: ReactNode }) => {
-  const [hideIncome, setHideIncome] = useState(false);
   const [hideAll, setHideAll] = useState(false);
+  // Vault starts hidden by default
+  const [hiddenCategories, setHiddenCategories] = useState<Set<PrivacyCategory>>(
+    new Set(['vault'])
+  );
 
-  const toggleHideIncome = () => setHideIncome((prev) => !prev);
   const toggleHideAll = () => setHideAll((prev) => !prev);
 
+  const toggleCategory = (category: PrivacyCategory) => {
+    setHiddenCategories((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(category)) {
+        newSet.delete(category);
+      } else {
+        newSet.add(category);
+      }
+      return newSet;
+    });
+  };
+
+  const isHidden = (category: PrivacyCategory): boolean => {
+    return hideAll || hiddenCategories.has(category);
+  };
+
   return (
-    <PrivacyContext.Provider value={{ hideIncome, hideAll, toggleHideIncome, toggleHideAll }}>
+    <PrivacyContext.Provider value={{ hideAll, hiddenCategories, toggleHideAll, toggleCategory, isHidden }}>
       {children}
     </PrivacyContext.Provider>
   );

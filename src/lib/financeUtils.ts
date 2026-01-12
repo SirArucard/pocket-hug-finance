@@ -83,9 +83,9 @@ export const getMonthName = (monthStr: string): string => {
 export const calculateMonthlyTotals = (transactions: Transaction[], month: string) => {
   const monthTransactions = transactions.filter(t => t.date.startsWith(month));
   
-  // Income excluding vault deposits (extra gains)
+  // Income excluding vault deposits (extra gains) AND vouchers (they are separate)
   const income = monthTransactions
-    .filter(t => t.type === 'income' && t.category !== 'extra')
+    .filter(t => t.type === 'income' && t.category !== 'extra' && t.category !== 'food_voucher' && t.category !== 'transport_voucher')
     .reduce((sum, t) => sum + t.amount, 0);
   
   // Only salary for reserve calculation
@@ -123,9 +123,9 @@ export const calculateMonthlyTotals = (transactions: Transaction[], month: strin
     .filter(t => t.type === 'expense' && t.category === 'vault_withdrawal')
     .reduce((sum, t) => sum + t.amount, 0);
   
-  // Expenses excluding vault withdrawals (they don't affect balance)
+  // Expenses excluding vault withdrawals (they don't affect balance) AND voucher expenses (separate system)
   const expenses = monthTransactions
-    .filter(t => t.type === 'expense' && t.category !== 'vault_withdrawal')
+    .filter(t => t.type === 'expense' && t.category !== 'vault_withdrawal' && t.paymentType !== 'food_voucher' && t.paymentType !== 'transport_voucher')
     .reduce((sum, t) => sum + t.amount, 0);
   
   const fixedExpenses = monthTransactions
