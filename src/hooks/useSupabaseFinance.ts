@@ -95,6 +95,40 @@ const mapDbToCreditCard = (db: DbCreditCard): CreditCard => ({
   dueDay: db.due_day,
 });
 
+// Calcula o período da fatura atual baseado no dia de fechamento
+const getCurrentInvoicePeriod = (closingDay: number): { start: Date; end: Date } => {
+  const now = new Date();
+  const currentDay = now.getDate();
+  
+  let startDate: Date;
+  let endDate: Date;
+  
+  if (currentDay <= closingDay) {
+    // Estamos antes do fechamento, fatura é do mês anterior até o fechamento deste mês
+    startDate = new Date(now.getFullYear(), now.getMonth() - 1, closingDay + 1);
+    endDate = new Date(now.getFullYear(), now.getMonth(), closingDay);
+  } else {
+    // Estamos após o fechamento, fatura é deste mês até o próximo fechamento
+    startDate = new Date(now.getFullYear(), now.getMonth(), closingDay + 1);
+    endDate = new Date(now.getFullYear(), now.getMonth() + 1, closingDay);
+  }
+  
+  return { start: startDate, end: endDate };
+};
+
+// Calcula o used_limit baseado nas transações de crédito do período atual
+const calculateUsedLimit = (transactions: Transaction[], closingDay: number): number => {
+  const { start, end } = getCurrentInvoicePeriod(closingDay);
+  
+  return transactions
+    .filter((t) => {
+      if (t.paymentType !== 'credit' || t.type !== 'expense') return false;
+      const txDate = new Date(t.date);
+      return txDate >= start && txDate <= end;
+    })
+    .reduce((sum, t) => sum + t.amount, 0);
+};
+
 export const useSupabaseFinance = () => {
   const [state, setState] = useState<FinanceState>({
     transactions: [],
@@ -171,6 +205,12 @@ export const useSupabaseFinance = () => {
             setSettingsId(settingsIdNew);
           }
         }
+
+        // Recalcula o usedLimit dinamicamente baseado nas transações de crédito do período atual
+        creditCards = creditCards.map((card) => ({
+          ...card,
+          usedLimit: calculateUsedLimit(transactions, card.closingDay),
+        }));
 
         setState({
           transactions,
@@ -253,15 +293,16 @@ export const useSupabaseFinance = () => {
         const { error } = await supabase.from('transactions').insert(dbTransactions);
         if (error) throw error;
 
+        const newTransactions = [...installmentTransactions, ...state.transactions];
         setState((prev) => ({
           ...prev,
-          transactions: [...installmentTransactions, ...prev.transactions],
+          transactions: newTransactions,
+          // Recalcula usedLimit dinamicamente
+          creditCards: prev.creditCards.map((card) => ({
+            ...card,
+            usedLimit: calculateUsedLimit(newTransactions, card.closingDay),
+          })),
         }));
-
-        // Update credit card used limit
-        if (transaction.type === 'expense') {
-          await updateCreditCardUsage(transaction.amount);
-        }
       } else {
         const newId = generateId();
         const newTransaction: Transaction = {
@@ -282,14 +323,16 @@ export const useSupabaseFinance = () => {
 
         if (error) throw error;
 
+        const newTransactions = [newTransaction, ...state.transactions];
         setState((prev) => ({
           ...prev,
-          transactions: [newTransaction, ...prev.transactions],
+          transactions: newTransactions,
+          // Recalcula usedLimit dinamicamente
+          creditCards: prev.creditCards.map((card) => ({
+            ...card,
+            usedLimit: calculateUsedLimit(newTransactions, card.closingDay),
+          })),
         }));
-
-        if (transaction.paymentType === 'credit' && transaction.type === 'expense') {
-          await updateCreditCardUsage(transaction.amount);
-        }
       }
 
       toast({
@@ -303,7 +346,7 @@ export const useSupabaseFinance = () => {
         variant: 'destructive',
       });
     }
-  }, [toast, user]);
+  }, [toast, user, state.transactions, state.creditCards]);
 
   const removeTransaction = useCallback(async (id: string) => {
     try {
@@ -315,7 +358,6 @@ export const useSupabaseFinance = () => {
         : state.transactions.filter((t) => t.id === id || t.parentId === id);
 
       const idsToRemove = toRemove.map((t) => t.id);
-      const totalAmount = toRemove.reduce((sum, t) => sum + t.amount, 0);
 
       // Delete from database (cascade will handle related)
       const { error } = await supabase
@@ -325,30 +367,17 @@ export const useSupabaseFinance = () => {
 
       if (error) throw error;
 
-      // Update credit card if it was a credit transaction
-      if (transaction.paymentType === 'credit') {
-        const card = state.creditCards[0];
-        if (card) {
-          const newUsedLimit = Math.max(0, card.usedLimit - totalAmount);
-          await supabase
-            .from('credit_cards')
-            .update({ used_limit: newUsedLimit })
-            .eq('id', card.id);
-
-          setState((prev) => ({
-            ...prev,
-            transactions: prev.transactions.filter((t) => !idsToRemove.includes(t.id)),
-            creditCards: prev.creditCards.map((c) =>
-              c.id === card.id ? { ...c, usedLimit: newUsedLimit } : c
-            ),
-          }));
-        }
-      } else {
-        setState((prev) => ({
-          ...prev,
-          transactions: prev.transactions.filter((t) => !idsToRemove.includes(t.id)),
-        }));
-      }
+      const remainingTransactions = state.transactions.filter((t) => !idsToRemove.includes(t.id));
+      
+      // Recalcula usedLimit dinamicamente
+      setState((prev) => ({
+        ...prev,
+        transactions: remainingTransactions,
+        creditCards: prev.creditCards.map((card) => ({
+          ...card,
+          usedLimit: calculateUsedLimit(remainingTransactions, card.closingDay),
+        })),
+      }));
 
       toast({
         title: 'Sucesso',
@@ -365,32 +394,6 @@ export const useSupabaseFinance = () => {
       });
     }
   }, [state.transactions, state.creditCards, toast]);
-
-  const updateCreditCardUsage = useCallback(async (amount: number) => {
-    const card = state.creditCards[0];
-    if (!card) return;
-
-    const newUsedLimit = card.usedLimit + amount;
-
-    const { error } = await supabase
-      .from('credit_cards')
-      .update({ used_limit: newUsedLimit })
-      .eq('id', card.id);
-
-    if (error) {
-      if (import.meta.env.DEV) {
-        console.error('Error updating credit card:', error);
-      }
-      return;
-    }
-
-    setState((prev) => ({
-      ...prev,
-      creditCards: prev.creditCards.map((c, index) =>
-        index === 0 ? { ...c, usedLimit: newUsedLimit } : c
-      ),
-    }));
-  }, [state.creditCards]);
 
   const updateCreditCard = useCallback(async (id: string, updates: Partial<CreditCard>) => {
     try {
