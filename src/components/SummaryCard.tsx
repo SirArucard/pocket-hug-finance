@@ -1,6 +1,8 @@
 import { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { BlurredValue } from '@/components/BlurredValue';
+import { CategoryPrivacyToggle } from '@/components/CategoryPrivacyToggle';
+import { PrivacyCategory } from '@/contexts/PrivacyContext';
 
 interface SummaryCardProps {
   title: string;
@@ -8,7 +10,8 @@ interface SummaryCardProps {
   icon: ReactNode;
   variant?: 'default' | 'income' | 'expense' | 'warning' | 'neutral';
   subtitle?: string;
-  blurOnIncome?: boolean;
+  privacyCategory?: PrivacyCategory;
+  privacyLabel?: string;
 }
 
 export const SummaryCard = ({
@@ -17,7 +20,8 @@ export const SummaryCard = ({
   icon,
   variant = 'default',
   subtitle,
-  blurOnIncome = false,
+  privacyCategory,
+  privacyLabel,
 }: SummaryCardProps) => {
   const variantStyles = {
     default: 'border-border/50',
@@ -44,11 +48,19 @@ export const SummaryCard = ({
     >
       <div className="flex items-start justify-between">
         <div className="space-y-1">
-          <p className="text-xs sm:text-sm text-muted-foreground font-medium uppercase tracking-wide">
-            {title}
-          </p>
+          <div className="flex items-center gap-1">
+            <p className="text-xs sm:text-sm text-muted-foreground font-medium uppercase tracking-wide">
+              {title}
+            </p>
+            {privacyCategory && privacyLabel && (
+              <CategoryPrivacyToggle 
+                category={privacyCategory} 
+                label={privacyLabel} 
+              />
+            )}
+          </div>
           <p className={cn('text-xl sm:text-2xl font-bold', textStyles[variant])}>
-            <BlurredValue value={value} blurOnIncome={blurOnIncome} />
+            <BlurredValue value={value} category={privacyCategory} />
           </p>
           {subtitle && (
             <p className="text-xs text-muted-foreground">{subtitle}</p>

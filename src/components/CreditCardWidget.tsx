@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/select';
 import { useState } from 'react';
 import { BlurredValue } from '@/components/BlurredValue';
+import { CategoryPrivacyToggle } from '@/components/CategoryPrivacyToggle';
 
 interface CreditCardWidgetProps {
   card: CreditCard;
@@ -58,6 +59,7 @@ export const CreditCardWidget = ({
   const [paySource, setPaySource] = useState<'salary' | 'vault'>('salary');
   
   const usedPercentage = (card.usedLimit / card.limit) * 100;
+  // BUGFIX: Limite disponível = limite total - fatura usada
   const available = card.limit - card.usedLimit;
 
   const getStatus = () => {
@@ -104,6 +106,7 @@ export const CreditCardWidget = ({
           <div className="flex items-center gap-2">
             <CreditCardIcon className="w-5 h-5" />
             <span className="font-medium">{card.name}</span>
+            <CategoryPrivacyToggle category="creditCard" label="Cartão" className="text-white/80 hover:text-white" />
           </div>
           <div className="flex items-center gap-1">
             <Button 
@@ -149,7 +152,7 @@ export const CreditCardWidget = ({
           <div>
             <p className="text-xs text-white/70 uppercase tracking-wide">Fatura Atual</p>
             <p className="text-2xl font-bold text-expense">
-              <BlurredValue value={formatCurrency(card.usedLimit)} />
+              <BlurredValue value={formatCurrency(card.usedLimit)} category="creditCard" />
             </p>
           </div>
 
@@ -157,7 +160,7 @@ export const CreditCardWidget = ({
           <div>
             <p className="text-xs text-white/70 uppercase tracking-wide">Limite Disponível</p>
             <p className="text-xl font-semibold">
-              <BlurredValue value={formatCurrency(available)} />
+              <BlurredValue value={formatCurrency(available)} category="creditCard" />
             </p>
           </div>
 
@@ -174,8 +177,8 @@ export const CreditCardWidget = ({
           </div>
 
           <div className="flex justify-between text-xs text-white/70">
-            <span>Usado: <BlurredValue value={formatCurrency(card.usedLimit)} /></span>
-            <span>Limite: <BlurredValue value={formatCurrency(card.limit)} /></span>
+            <span>Usado: <BlurredValue value={formatCurrency(card.usedLimit)} category="creditCard" /></span>
+            <span>Limite: <BlurredValue value={formatCurrency(card.limit)} category="creditCard" /></span>
           </div>
 
           {/* Pay Invoice Button */}
