@@ -41,6 +41,7 @@ interface CreditCardWidgetProps {
   onPayInvoice?: (amount: number, source: 'salary' | 'vault') => Promise<boolean>;
   vaultBalance?: number;
   salaryBalance?: number;
+  invoiceAmount: number; // Nova prop para receber o valor calculado da fatura
 }
 
 export const CreditCardWidget = ({ 
@@ -49,6 +50,7 @@ export const CreditCardWidget = ({
   onPayInvoice,
   vaultBalance = 0,
   salaryBalance = 0,
+  invoiceAmount, // Recebendo o valor correto
 }: CreditCardWidgetProps) => {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isPayOpen, setIsPayOpen] = useState(false);
@@ -60,8 +62,8 @@ export const CreditCardWidget = ({
   const [payAmount, setPayAmount] = useState('');
   const [paySource, setPaySource] = useState<'salary' | 'vault'>('salary');
   
+  // A barra de progresso continua usando o limite total consumido (dívida total)
   const usedPercentage = (card.usedLimit / card.limit) * 100;
-  // BUGFIX: Limite disponível = limite total - fatura usada
   const available = card.limit - card.usedLimit;
 
   const getStatus = () => {
@@ -88,7 +90,8 @@ export const CreditCardWidget = ({
   const handleConfirmPayment = async () => {
     if (!onPayInvoice) return;
     
-    const amount = parseFloat(payAmount) || card.usedLimit;
+    // Se o usuário não digitar nada, assume que quer pagar o valor da fatura atual
+    const amount = parseFloat(payAmount) || invoiceAmount;
     const success = await onPayInvoice(amount, paySource);
     
     if (success) {
@@ -179,11 +182,11 @@ export const CreditCardWidget = ({
         </div>
 
         <div className="space-y-3">
-          {/* Fatura Atual */}
+          {/* Fatura Atual - AGORA MOSTRA O VALOR CORRETO DO MÊS */}
           <div>
-            <p className="text-xs text-white/70 uppercase tracking-wide">Fatura Atual</p>
+            <p className="text-xs text-white/70 uppercase tracking-wide">Fatura Atual (Vencimento)</p>
             <p className="text-2xl font-bold text-expense">
-              <BlurredValue value={formatCurrency(card.usedLimit)} category="creditCard" />
+              <BlurredValue value={formatCurrency(invoiceAmount)} category="creditCard" />
             </p>
           </div>
 
@@ -208,7 +211,7 @@ export const CreditCardWidget = ({
           </div>
 
           <div className="flex justify-between text-xs text-white/70">
-            <span>Usado: <BlurredValue value={formatCurrency(card.usedLimit)} category="creditCard" /></span>
+            <span>Total Usado: <BlurredValue value={formatCurrency(card.usedLimit)} category="creditCard" /></span>
             <span>Limite: <BlurredValue value={formatCurrency(card.limit)} category="creditCard" /></span>
           </div>
 
@@ -239,10 +242,10 @@ export const CreditCardWidget = ({
                       step="0.01"
                       value={payAmount}
                       onChange={(e) => setPayAmount(e.target.value)}
-                      placeholder={card.usedLimit.toString()}
+                      placeholder={invoiceAmount.toString()} // Sugere o valor da fatura atual
                     />
                     <p className="text-xs text-muted-foreground">
-                      Fatura atual: {formatCurrency(card.usedLimit)}
+                      Fatura atual: {formatCurrency(invoiceAmount)}
                     </p>
                   </div>
                   
@@ -277,7 +280,7 @@ export const CreditCardWidget = ({
               <AlertDialogHeader>
                 <AlertDialogTitle>Confirmar Pagamento</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Deseja confirmar o pagamento de {formatCurrency(parseFloat(payAmount) || card.usedLimit)} da fatura usando {paySource === 'salary' ? 'Salário' : 'Cofre'}?
+                  Deseja confirmar o pagamento de {formatCurrency(parseFloat(payAmount) || invoiceAmount)} da fatura usando {paySource === 'salary' ? 'Salário' : 'Cofre'}?
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
