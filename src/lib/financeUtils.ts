@@ -77,19 +77,25 @@ export const getCurrentMonth = (): string => {
 };
 
 export const getMonthName = (monthStr: string): string => {
-  const [year, month] = monthStr.split('-');
-  const date = new Date(parseInt(year), parseInt(month) - 1);
-  return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  // Correção de Fuso: Usa split e UTC para garantir o nome correto do mês
+  const [year, month] = monthStr.split('-').map(Number);
+  // Cria data usando UTC para evitar que dia 1 vire dia 31 do mês anterior
+  const date = new Date(Date.UTC(year, month - 1, 1));
+  return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 };
 
 // Determina o mês da fatura baseado na data da compra e melhor dia de compra
 export const getInvoiceMonth = (transactionDate: string, bestBuyDay: number): string => {
-  const txDate = new Date(transactionDate);
-  const txDay = txDate.getDate();
-  const txMonth = txDate.getMonth();
-  const txYear = txDate.getFullYear();
+  // CORREÇÃO CRÍTICA: Não usar new Date(string) direto para evitar timezone (GMT-3)
+  // Quebra a string "YYYY-MM-DD" e usa os números puros
+  const [year, month, day] = transactionDate.split('-').map(Number);
   
-  // Se compra antes do melhor dia de compra -> fatura do MÊS ATUAL
+  // txDay agora é exatamente o dia que está escrito, sem voltar 1 dia
+  const txDay = day;
+  const txMonth = month - 1; // JS months são 0-11
+  const txYear = year;
+  
+  // Se compra antes do melhor dia de compra -> fatura do MÊS DA COMPRA
   // Se compra no ou após melhor dia de compra -> fatura do PRÓXIMO MÊS
   if (txDay < bestBuyDay) {
     return `${txYear}-${String(txMonth + 1).padStart(2, '0')}`;
@@ -119,60 +125,50 @@ export const calculateMonthlyTotals = (
     .filter(t => t.type === 'income' && t.category === 'extra_values')
     .reduce((sum, t) => sum + t.amount, 0);
   
-  // Retiradas do cofre que vão para Entradas (INCOME_TRANSFER)
   const vaultToIncome = monthTransactions
     .filter(t => t.type === 'expense' && t.category === 'vault_withdrawal' && t.destinationType === 'INCOME_TRANSFER')
     .reduce((sum, t) => sum + t.amount, 0);
   
   const income = salaryIncome + extraValuesIncome + vaultToIncome;
   
-  // Food voucher income
   const foodVoucherIncome = monthTransactions
     .filter(t => t.type === 'income' && t.category === 'food_voucher')
     .reduce((sum, t) => sum + t.amount, 0);
   
-  // Transport voucher income
   const transportVoucherIncome = monthTransactions
     .filter(t => t.type === 'income' && t.category === 'transport_voucher')
     .reduce((sum, t) => sum + t.amount, 0);
   
-  // Food voucher expenses
   const foodVoucherExpenses = monthTransactions
     .filter(t => t.type === 'expense' && t.paymentType === 'food_voucher')
     .reduce((sum, t) => sum + t.amount, 0);
   
-  // Transport voucher expenses
   const transportVoucherExpenses = monthTransactions
     .filter(t => t.type === 'expense' && t.paymentType === 'transport_voucher')
     .reduce((sum, t) => sum + t.amount, 0);
   
-  // Vault deposits (extra gains)
   const vaultDeposits = monthTransactions
     .filter(t => t.type === 'income' && t.category === 'extra')
     .reduce((sum, t) => sum + t.amount, 0);
   
-  // Vault withdrawals (todas)
   const vaultWithdrawals = monthTransactions
     .filter(t => t.type === 'expense' && t.category === 'vault_withdrawal')
     .reduce((sum, t) => sum + t.amount, 0);
   
-  // Saídas: Débito + Crédito (atribuído ao mês da fatura atual)
-  // Débito: transações do mês
   const debitExpenses = monthTransactions
     .filter(t => t.type === 'expense' && t.paymentType === 'debit' && t.category !== 'vault_withdrawal')
     .reduce((sum, t) => sum + t.amount, 0);
   
-  // Crédito: buscar todas as transações de crédito e filtrar pela fatura do mês ATUAL
+  // Fatura da MÊS SELECIONADO (para exibição na tela)
   const invoiceTotal = transactions
     .filter(t => {
       if (t.type !== 'expense' || t.paymentType !== 'credit') return false;
       const invoiceMonth = getInvoiceMonth(t.date, bestBuyDay);
+      // Aqui compara strings exatas "2026-01" === "2026-01"
       return invoiceMonth === month;
     })
     .reduce((sum, t) => sum + t.amount, 0);
   
-  // Excluir vault withdrawals com DIRECT_USE (invisíveis ao orçamento)
-  // e voucher expenses (sistema separado)
   const expenses = debitExpenses + invoiceTotal;
   
   const fixedExpenses = monthTransactions
@@ -194,7 +190,6 @@ export const calculateMonthlyTotals = (
   };
 };
 
-// Calculate total voucher balances across all transactions
 export const calculateVoucherBalances = (transactions: Transaction[]) => {
   const foodVoucherIncome = transactions
     .filter(t => t.type === 'income' && t.category === 'food_voucher')
@@ -230,7 +225,6 @@ export const getNextMonth = (monthStr: string): string => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 };
 
-// Calculate total vault balance across all transactions
 export const calculateVaultBalance = (transactions: Transaction[]) => {
   const deposits = transactions
     .filter(t => t.type === 'income' && t.category === 'extra')
@@ -260,11 +254,14 @@ export const generateInstallmentTransactions = (
   const transactions: Transaction[] = [];
   const parentId = generateId();
   const monthlyAmount = transaction.amount / installments;
-  const startDate = new Date(transaction.date);
+  // Ajuste para garantir que a data inicial seja respeitada sem problemas de fuso
+  const [y, m, d] = transaction.date.split('-').map(Number);
+  // Usa UTC para cálculo de parcelas
+  const startDate = new Date(Date.UTC(y, m - 1, d));
   
   for (let i = 0; i < installments; i++) {
     const date = new Date(startDate);
-    date.setMonth(date.getMonth() + i);
+    date.setUTCMonth(startDate.getUTCMonth() + i);
     
     transactions.push({
       ...transaction,
@@ -281,9 +278,7 @@ export const generateInstallmentTransactions = (
   return transactions;
 };
 
-// MODIFICAÇÃO PRINCIPAL AQUI:
-// Calcula o limite usado somando a fatura atual E as próximas parcelas
-// (Tudo que tiver vencimento >= mês atual)
+// Calcula o limite usado somando TUDO (Fatura Atual + Futuras)
 export const calculateUsedLimit = (
   transactions: Transaction[], 
   bestBuyDay: number,
@@ -293,7 +288,7 @@ export const calculateUsedLimit = (
     .filter((t) => {
       if (t.paymentType !== 'credit' || t.type !== 'expense') return false;
       const invoiceMonth = getInvoiceMonth(t.date, bestBuyDay);
-      // Soma se o mês da fatura for igual ou posterior ao mês atual
+      // SOMA TUDO que vence agora ou no futuro
       return invoiceMonth >= currentMonth;
     })
     .reduce((sum, t) => sum + t.amount, 0);
