@@ -163,7 +163,7 @@ export const calculateMonthlyTotals = (
     .reduce((sum, t) => sum + t.amount, 0);
   
   // Crédito: buscar todas as transações de crédito e filtrar pela fatura do mês atual
-  const creditExpenses = transactions
+  const invoiceTotal = transactions
     .filter(t => {
       if (t.type !== 'expense' || t.paymentType !== 'credit') return false;
       const invoiceMonth = getInvoiceMonth(t.date, bestBuyDay);
@@ -173,7 +173,7 @@ export const calculateMonthlyTotals = (
   
   // Excluir vault withdrawals com DIRECT_USE (invisíveis ao orçamento)
   // e voucher expenses (sistema separado)
-  const expenses = debitExpenses + creditExpenses;
+  const expenses = debitExpenses + invoiceTotal;
   
   const fixedExpenses = monthTransactions
     .filter(t => t.type === 'expense' && t.category === 'fixed_bills')
@@ -190,6 +190,7 @@ export const calculateMonthlyTotals = (
     foodVoucherExpenses,
     transportVoucherIncome,
     transportVoucherExpenses,
+    invoiceTotal, // Adicionado ao retorno para uso no Widget
   };
 };
 
