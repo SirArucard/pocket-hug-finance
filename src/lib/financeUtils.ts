@@ -1,4 +1,4 @@
-import { Transaction, ExpenseCategory, IncomeCategory, PaymentType } from '@/types/finance';
+import { Transaction, ExpenseCategory, IncomeCategory, PaymentType, CreditCard } from '@/types/finance';
 
 export const categoryLabels: Record<ExpenseCategory | IncomeCategory, string> = {
   fixed_bills: 'Contas Fixas',
@@ -9,6 +9,7 @@ export const categoryLabels: Record<ExpenseCategory | IncomeCategory, string> = 
   vault_withdrawal: 'Cofre (Retirada)',
   salary: 'Salário',
   extra: 'Cofre (Depósito)',
+  extra_values: 'Valores Extras',
   food_voucher: 'Ticket Alimentação',
   transport_voucher: 'Ticket Mobilidade',
 };
@@ -22,6 +23,7 @@ export const categoryIcons: Record<ExpenseCategory | IncomeCategory, string> = {
   vault_withdrawal: '🔓',
   salary: '💰',
   extra: '🔐',
+  extra_values: '💎',
   food_voucher: '🍴',
   transport_voucher: '🚌',
 };
@@ -80,18 +82,49 @@ export const getMonthName = (monthStr: string): string => {
   return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 };
 
-export const calculateMonthlyTotals = (transactions: Transaction[], month: string) => {
+// Determina o mês da fatura baseado na data da compra e melhor dia de compra
+export const getInvoiceMonth = (transactionDate: string, bestBuyDay: number): string => {
+  const txDate = new Date(transactionDate);
+  const txDay = txDate.getDate();
+  const txMonth = txDate.getMonth();
+  const txYear = txDate.getFullYear();
+  
+  // Se compra antes do melhor dia de compra -> fatura do MÊS ATUAL
+  // Se compra no ou após melhor dia de compra -> fatura do PRÓXIMO MÊS
+  if (txDay < bestBuyDay) {
+    return `${txYear}-${String(txMonth + 1).padStart(2, '0')}`;
+  } else {
+    const nextMonth = txMonth + 1;
+    if (nextMonth > 11) {
+      return `${txYear + 1}-01`;
+    }
+    return `${txYear}-${String(nextMonth + 1).padStart(2, '0')}`;
+  }
+};
+
+export const calculateMonthlyTotals = (
+  transactions: Transaction[], 
+  month: string,
+  creditCards?: CreditCard[]
+) => {
   const monthTransactions = transactions.filter(t => t.date.startsWith(month));
+  const bestBuyDay = creditCards?.[0]?.bestBuyDay ?? 7;
   
-  // Income excluding vault deposits (extra gains) AND vouchers (they are separate)
-  const income = monthTransactions
-    .filter(t => t.type === 'income' && t.category !== 'extra' && t.category !== 'food_voucher' && t.category !== 'transport_voucher')
-    .reduce((sum, t) => sum + t.amount, 0);
-  
-  // Only salary for reserve calculation
+  // Income: Salário + Valores Extras + Retiradas do Cofre com destino INCOME_TRANSFER
   const salaryIncome = monthTransactions
     .filter(t => t.type === 'income' && t.category === 'salary')
     .reduce((sum, t) => sum + t.amount, 0);
+  
+  const extraValuesIncome = monthTransactions
+    .filter(t => t.type === 'income' && t.category === 'extra_values')
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  // Retiradas do cofre que vão para Entradas (INCOME_TRANSFER)
+  const vaultToIncome = monthTransactions
+    .filter(t => t.type === 'expense' && t.category === 'vault_withdrawal' && t.destinationType === 'INCOME_TRANSFER')
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  const income = salaryIncome + extraValuesIncome + vaultToIncome;
   
   // Food voucher income
   const foodVoucherIncome = monthTransactions
@@ -118,15 +151,29 @@ export const calculateMonthlyTotals = (transactions: Transaction[], month: strin
     .filter(t => t.type === 'income' && t.category === 'extra')
     .reduce((sum, t) => sum + t.amount, 0);
   
-  // Vault withdrawals
+  // Vault withdrawals (todas)
   const vaultWithdrawals = monthTransactions
     .filter(t => t.type === 'expense' && t.category === 'vault_withdrawal')
     .reduce((sum, t) => sum + t.amount, 0);
   
-  // Expenses excluding vault withdrawals (they don't affect balance) AND voucher expenses (separate system)
-  const expenses = monthTransactions
-    .filter(t => t.type === 'expense' && t.category !== 'vault_withdrawal' && t.paymentType !== 'food_voucher' && t.paymentType !== 'transport_voucher')
+  // Saídas: Débito + Crédito (atribuído ao mês da fatura atual)
+  // Débito: transações do mês
+  const debitExpenses = monthTransactions
+    .filter(t => t.type === 'expense' && t.paymentType === 'debit' && t.category !== 'vault_withdrawal')
     .reduce((sum, t) => sum + t.amount, 0);
+  
+  // Crédito: buscar todas as transações de crédito e filtrar pela fatura do mês atual
+  const creditExpenses = transactions
+    .filter(t => {
+      if (t.type !== 'expense' || t.paymentType !== 'credit') return false;
+      const invoiceMonth = getInvoiceMonth(t.date, bestBuyDay);
+      return invoiceMonth === month;
+    })
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  // Excluir vault withdrawals com DIRECT_USE (invisíveis ao orçamento)
+  // e voucher expenses (sistema separado)
+  const expenses = debitExpenses + creditExpenses;
   
   const fixedExpenses = monthTransactions
     .filter(t => t.type === 'expense' && t.category === 'fixed_bills')
@@ -231,4 +278,19 @@ export const generateInstallmentTransactions = (
   }
   
   return transactions;
+};
+
+// Calcula o limite usado baseado em transações de crédito da fatura do mês atual
+export const calculateUsedLimit = (
+  transactions: Transaction[], 
+  bestBuyDay: number,
+  targetMonth: string
+): number => {
+  return transactions
+    .filter((t) => {
+      if (t.paymentType !== 'credit' || t.type !== 'expense') return false;
+      const invoiceMonth = getInvoiceMonth(t.date, bestBuyDay);
+      return invoiceMonth === targetMonth;
+    })
+    .reduce((sum, t) => sum + t.amount, 0);
 };

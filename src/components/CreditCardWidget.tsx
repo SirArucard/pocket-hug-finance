@@ -54,6 +54,8 @@ export const CreditCardWidget = ({
   const [isPayOpen, setIsPayOpen] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [limit, setLimit] = useState(card.limit.toString());
+  const [bestBuyDay, setBestBuyDay] = useState(card.bestBuyDay.toString());
+  const [dueDay, setDueDay] = useState(card.dueDay.toString());
   const [showInvoice, setShowInvoice] = useState(true);
   const [payAmount, setPayAmount] = useState('');
   const [paySource, setPaySource] = useState<'salary' | 'vault'>('salary');
@@ -71,7 +73,11 @@ export const CreditCardWidget = ({
   const status = getStatus();
 
   const handleSave = () => {
-    onUpdate(card.id, { limit: parseFloat(limit) || card.limit });
+    onUpdate(card.id, { 
+      limit: parseFloat(limit) || card.limit,
+      bestBuyDay: parseInt(bestBuyDay) || card.bestBuyDay,
+      dueDay: parseInt(dueDay) || card.dueDay,
+    });
     setIsEditOpen(false);
   };
 
@@ -126,7 +132,7 @@ export const CreditCardWidget = ({
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Editar Limite do Cartão</DialogTitle>
+                  <DialogTitle>Editar Cartão</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 pt-4">
                   <div className="space-y-2">
@@ -136,6 +142,31 @@ export const CreditCardWidget = ({
                       value={limit}
                       onChange={(e) => setLimit(e.target.value)}
                       placeholder="5000"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Melhor Dia de Compra</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="31"
+                      value={bestBuyDay}
+                      onChange={(e) => setBestBuyDay(e.target.value)}
+                      placeholder="7"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Compras antes deste dia vão para a fatura do mês atual
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Dia do Vencimento</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="31"
+                      value={dueDay}
+                      onChange={(e) => setDueDay(e.target.value)}
+                      placeholder="25"
                     />
                   </div>
                   <Button onClick={handleSave} className="w-full">

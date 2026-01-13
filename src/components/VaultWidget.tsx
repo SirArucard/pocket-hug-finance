@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Dialog,
   DialogContent,
@@ -25,12 +27,13 @@ import { formatCurrency } from '@/lib/financeUtils';
 import { BlurredValue } from '@/components/BlurredValue';
 import { CategoryPrivacyToggle } from '@/components/CategoryPrivacyToggle';
 import { useState } from 'react';
+import { VaultDestinationType } from '@/types/finance';
 
 interface VaultWidgetProps {
   balance: number;
   monthlyDeposits: number;
   monthlyWithdrawals: number;
-  onWithdraw?: (amount: number) => Promise<boolean>;
+  onWithdraw?: (amount: number, reason: string, destinationType: VaultDestinationType) => Promise<boolean>;
 }
 
 export const VaultWidget = ({ 
@@ -42,10 +45,12 @@ export const VaultWidget = ({
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [reason, setReason] = useState('');
+  const [destinationType, setDestinationType] = useState<VaultDestinationType>('INCOME_TRANSFER');
 
   const handleWithdrawClick = () => {
     const amount = parseFloat(withdrawAmount);
-    if (amount > 0 && amount <= balance) {
+    if (amount > 0 && amount <= balance && reason.trim()) {
       setIsConfirmOpen(true);
     }
   };
@@ -54,15 +59,23 @@ export const VaultWidget = ({
     if (!onWithdraw) return;
     
     const amount = parseFloat(withdrawAmount);
-    const success = await onWithdraw(amount);
+    const success = await onWithdraw(amount, reason.trim(), destinationType);
     
     if (success) {
       setWithdrawAmount('');
+      setReason('');
+      setDestinationType('INCOME_TRANSFER');
       setIsWithdrawOpen(false);
       setIsConfirmOpen(false);
     } else {
       setIsConfirmOpen(false);
     }
+  };
+
+  const getDestinationLabel = () => {
+    return destinationType === 'INCOME_TRANSFER' 
+      ? 'Enviar para Entradas (afeta saldo)' 
+      : 'Uso Direto (não afeta orçamento)';
   };
 
   return (
@@ -114,7 +127,7 @@ export const VaultWidget = ({
               <DialogHeader>
                 <DialogTitle>Retirar do Cofre</DialogTitle>
                 <DialogDescription>
-                  O valor será transferido para a conta principal.
+                  Escolha o destino do valor retirado.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 pt-4">
@@ -134,10 +147,52 @@ export const VaultWidget = ({
                   </p>
                 </div>
 
+                <div className="space-y-2">
+                  <Label>Motivo</Label>
+                  <Textarea
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    placeholder="Ex: Pagamento de conta, Emergência..."
+                    rows={2}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Destino</Label>
+                  <RadioGroup 
+                    value={destinationType} 
+                    onValueChange={(value) => setDestinationType(value as VaultDestinationType)}
+                    className="space-y-2"
+                  >
+                    <div className="flex items-center space-x-2 p-2 rounded-lg border border-border hover:bg-muted/50">
+                      <RadioGroupItem value="INCOME_TRANSFER" id="income" />
+                      <Label htmlFor="income" className="flex-1 cursor-pointer">
+                        <span className="font-medium">Enviar para Entradas</span>
+                        <p className="text-xs text-muted-foreground">
+                          Adiciona às Entradas e afeta o Saldo do mês
+                        </p>
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2 p-2 rounded-lg border border-border hover:bg-muted/50">
+                      <RadioGroupItem value="DIRECT_USE" id="direct" />
+                      <Label htmlFor="direct" className="flex-1 cursor-pointer">
+                        <span className="font-medium">Uso Direto</span>
+                        <p className="text-xs text-muted-foreground">
+                          Invisível ao orçamento mensal, afeta apenas o Cofre
+                        </p>
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
                 <Button 
                   onClick={handleWithdrawClick} 
                   className="w-full"
-                  disabled={parseFloat(withdrawAmount) <= 0 || parseFloat(withdrawAmount) > balance}
+                  disabled={
+                    parseFloat(withdrawAmount) <= 0 || 
+                    parseFloat(withdrawAmount) > balance ||
+                    !reason.trim()
+                  }
                 >
                   Retirar
                 </Button>
@@ -151,8 +206,12 @@ export const VaultWidget = ({
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Confirmar Retirada</AlertDialogTitle>
-              <AlertDialogDescription>
-                Deseja confirmar a retirada de {formatCurrency(parseFloat(withdrawAmount) || 0)} do cofre para a conta principal?
+              <AlertDialogDescription className="space-y-2">
+                <p>
+                  Deseja confirmar a retirada de <strong>{formatCurrency(parseFloat(withdrawAmount) || 0)}</strong> do cofre?
+                </p>
+                <p><strong>Motivo:</strong> {reason}</p>
+                <p><strong>Destino:</strong> {getDestinationLabel()}</p>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -165,7 +224,7 @@ export const VaultWidget = ({
         </AlertDialog>
 
         <p className="text-xs text-muted-foreground italic">
-          💡 Ganhos extras vão direto para o cofre
+          💡 Valores extras vão direto para o cofre
         </p>
       </CardContent>
     </Card>

@@ -11,8 +11,11 @@ export type ExpenseCategory =
 export type IncomeCategory = 
   | 'salary' 
   | 'extra' 
+  | 'extra_values'
   | 'food_voucher' 
   | 'transport_voucher';
+
+export type VaultDestinationType = 'INCOME_TRANSFER' | 'DIRECT_USE';
 
 export interface Transaction {
   id: string;
@@ -25,6 +28,8 @@ export interface Transaction {
   installments?: number;
   currentInstallment?: number;
   parentId?: string;
+  reason?: string;
+  destinationType?: VaultDestinationType;
 }
 
 export interface CreditCard {
@@ -34,6 +39,7 @@ export interface CreditCard {
   usedLimit: number;
   closingDay: number;
   dueDay: number;
+  bestBuyDay: number;
 }
 
 export interface MonthlyBudget {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Transaction, CreditCard, FinanceState } from '@/types/finance';
-import { generateInstallmentTransactions, generateId } from '@/lib/financeUtils';
+import { Transaction, CreditCard, FinanceState, VaultDestinationType } from '@/types/finance';
+import { generateInstallmentTransactions, generateId, getCurrentMonth, calculateUsedLimit } from '@/lib/financeUtils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { z } from 'zod';
@@ -11,7 +11,7 @@ const transactionSchema = z.object({
   name: z.string().trim().min(1, 'Nome é obrigatório').max(200, 'Nome muito longo'),
   amount: z.number().positive('Valor deve ser positivo').max(1000000000, 'Valor muito alto'),
   category: z.enum([
-    'salary', 'extra', 'food_voucher', 'transport_voucher',
+    'salary', 'extra', 'extra_values', 'food_voucher', 'transport_voucher',
     'fixed_bills', 'food', 'transport', 'health', 'lifestyle', 'vault_withdrawal'
   ], { errorMap: () => ({ message: 'Categoria inválida' }) }),
   type: z.enum(['income', 'expense'], { errorMap: () => ({ message: 'Tipo inválido' }) }),
@@ -36,12 +36,19 @@ const transferSchema = z.object({
   amount: z.number().positive('Valor deve ser positivo').max(1000000000, 'Valor muito alto'),
 });
 
+const vaultWithdrawSchema = z.object({
+  amount: z.number().positive('Valor deve ser positivo').max(1000000000, 'Valor muito alto'),
+  reason: z.string().trim().min(1, 'Motivo é obrigatório').max(200, 'Motivo muito longo'),
+  destinationType: z.enum(['INCOME_TRANSFER', 'DIRECT_USE'], { errorMap: () => ({ message: 'Destino inválido' }) }),
+});
+
 const creditCardUpdateSchema = z.object({
   limit: z.number().positive().max(1000000000).optional(),
   usedLimit: z.number().min(0).max(1000000000).optional(),
   name: z.string().trim().min(1).max(100).optional(),
   closingDay: z.number().int().min(1).max(31).optional(),
   dueDay: z.number().int().min(1).max(31).optional(),
+  bestBuyDay: z.number().int().min(1).max(31).optional(),
 });
 
 const reservePercentageSchema = z.number().int().min(0).max(100);
@@ -57,6 +64,8 @@ interface DbTransaction {
   installments: number | null;
   current_installment: number | null;
   parent_id: string | null;
+  reason: string | null;
+  destination_type: string | null;
 }
 
 interface DbCreditCard {
@@ -66,6 +75,7 @@ interface DbCreditCard {
   used_limit: number;
   closing_day: number;
   due_day: number;
+  best_buy_day: number;
 }
 
 interface DbSettings {
@@ -84,6 +94,8 @@ const mapDbToTransaction = (db: DbTransaction): Transaction => ({
   installments: db.installments ?? undefined,
   currentInstallment: db.current_installment ?? undefined,
   parentId: db.parent_id ?? undefined,
+  reason: db.reason ?? undefined,
+  destinationType: db.destination_type as VaultDestinationType | undefined,
 });
 
 const mapDbToCreditCard = (db: DbCreditCard): CreditCard => ({
@@ -93,41 +105,8 @@ const mapDbToCreditCard = (db: DbCreditCard): CreditCard => ({
   usedLimit: Number(db.used_limit),
   closingDay: db.closing_day,
   dueDay: db.due_day,
+  bestBuyDay: db.best_buy_day,
 });
-
-// Calcula o período da fatura atual baseado no dia de fechamento
-const getCurrentInvoicePeriod = (closingDay: number): { start: Date; end: Date } => {
-  const now = new Date();
-  const currentDay = now.getDate();
-  
-  let startDate: Date;
-  let endDate: Date;
-  
-  if (currentDay <= closingDay) {
-    // Estamos antes do fechamento, fatura é do mês anterior até o fechamento deste mês
-    startDate = new Date(now.getFullYear(), now.getMonth() - 1, closingDay + 1);
-    endDate = new Date(now.getFullYear(), now.getMonth(), closingDay);
-  } else {
-    // Estamos após o fechamento, fatura é deste mês até o próximo fechamento
-    startDate = new Date(now.getFullYear(), now.getMonth(), closingDay + 1);
-    endDate = new Date(now.getFullYear(), now.getMonth() + 1, closingDay);
-  }
-  
-  return { start: startDate, end: endDate };
-};
-
-// Calcula o used_limit baseado nas transações de crédito do período atual
-const calculateUsedLimit = (transactions: Transaction[], closingDay: number): number => {
-  const { start, end } = getCurrentInvoicePeriod(closingDay);
-  
-  return transactions
-    .filter((t) => {
-      if (t.paymentType !== 'credit' || t.type !== 'expense') return false;
-      const txDate = new Date(t.date);
-      return txDate >= start && txDate <= end;
-    })
-    .reduce((sum, t) => sum + t.amount, 0);
-};
 
 export const useSupabaseFinance = () => {
   const [state, setState] = useState<FinanceState>({
@@ -180,6 +159,7 @@ export const useSupabaseFinance = () => {
             used_limit: 0,
             closing_day: 15,
             due_day: 25,
+            best_buy_day: 7,
             user_id: user.id,
           });
           if (!error) {
@@ -190,6 +170,7 @@ export const useSupabaseFinance = () => {
               usedLimit: 0,
               closingDay: 15,
               dueDay: 25,
+              bestBuyDay: 7,
             }];
           }
         }
@@ -206,10 +187,11 @@ export const useSupabaseFinance = () => {
           }
         }
 
-        // Recalcula o usedLimit dinamicamente baseado nas transações de crédito do período atual
+        // Recalcula o usedLimit dinamicamente baseado nas transações de crédito da fatura atual
+        const currentMonth = getCurrentMonth();
         creditCards = creditCards.map((card) => ({
           ...card,
-          usedLimit: calculateUsedLimit(transactions, card.closingDay),
+          usedLimit: calculateUsedLimit(transactions, card.bestBuyDay, currentMonth),
         }));
 
         setState({
@@ -294,13 +276,14 @@ export const useSupabaseFinance = () => {
         if (error) throw error;
 
         const newTransactions = [...installmentTransactions, ...state.transactions];
+        const currentMonth = getCurrentMonth();
         setState((prev) => ({
           ...prev,
           transactions: newTransactions,
           // Recalcula usedLimit dinamicamente
           creditCards: prev.creditCards.map((card) => ({
             ...card,
-            usedLimit: calculateUsedLimit(newTransactions, card.closingDay),
+            usedLimit: calculateUsedLimit(newTransactions, card.bestBuyDay, currentMonth),
           })),
         }));
       } else {
@@ -324,13 +307,14 @@ export const useSupabaseFinance = () => {
         if (error) throw error;
 
         const newTransactions = [newTransaction, ...state.transactions];
+        const currentMonth = getCurrentMonth();
         setState((prev) => ({
           ...prev,
           transactions: newTransactions,
           // Recalcula usedLimit dinamicamente
           creditCards: prev.creditCards.map((card) => ({
             ...card,
-            usedLimit: calculateUsedLimit(newTransactions, card.closingDay),
+            usedLimit: calculateUsedLimit(newTransactions, card.bestBuyDay, currentMonth),
           })),
         }));
       }
@@ -368,6 +352,7 @@ export const useSupabaseFinance = () => {
       if (error) throw error;
 
       const remainingTransactions = state.transactions.filter((t) => !idsToRemove.includes(t.id));
+      const currentMonth = getCurrentMonth();
       
       // Recalcula usedLimit dinamicamente
       setState((prev) => ({
@@ -375,7 +360,7 @@ export const useSupabaseFinance = () => {
         transactions: remainingTransactions,
         creditCards: prev.creditCards.map((card) => ({
           ...card,
-          usedLimit: calculateUsedLimit(remainingTransactions, card.closingDay),
+          usedLimit: calculateUsedLimit(remainingTransactions, card.bestBuyDay, currentMonth),
         })),
       }));
 
@@ -415,6 +400,7 @@ export const useSupabaseFinance = () => {
       if (updates.name !== undefined) dbUpdates.name = updates.name;
       if (updates.closingDay !== undefined) dbUpdates.closing_day = updates.closingDay;
       if (updates.dueDay !== undefined) dbUpdates.due_day = updates.dueDay;
+      if (updates.bestBuyDay !== undefined) dbUpdates.best_buy_day = updates.bestBuyDay;
 
       const { error } = await supabase
         .from('credit_cards')
@@ -512,6 +498,8 @@ export const useSupabaseFinance = () => {
         payment_type: 'debit',
         date: today,
         user_id: user.id,
+        destination_type: source === 'vault' ? 'INCOME_TRANSFER' : null,
+        reason: source === 'vault' ? 'Pagamento de fatura do cartão' : null,
       };
 
       const { error: transError } = await supabase.from('transactions').insert(transaction);
@@ -530,8 +518,15 @@ export const useSupabaseFinance = () => {
         ...prev,
         transactions: [
           {
-            ...transaction,
+            id: transactionId,
+            name: `Pagamento Fatura - ${card.name}`,
+            amount: amount,
+            category: source === 'vault' ? 'vault_withdrawal' : 'fixed_bills',
+            type: 'expense',
             paymentType: 'debit',
+            date: today,
+            destinationType: source === 'vault' ? 'INCOME_TRANSFER' : undefined,
+            reason: source === 'vault' ? 'Pagamento de fatura do cartão' : undefined,
           } as Transaction,
           ...prev.transactions,
         ],
@@ -627,10 +622,10 @@ export const useSupabaseFinance = () => {
     }
   }, [toast, user]);
 
-  const withdrawFromVault = useCallback(async (amount: number) => {
+  const withdrawFromVault = useCallback(async (amount: number, reason: string, destinationType: VaultDestinationType) => {
     try {
       // Validate input
-      const validationResult = transferSchema.safeParse({ amount });
+      const validationResult = vaultWithdrawSchema.safeParse({ amount, reason, destinationType });
       if (!validationResult.success) {
         const errorMessage = validationResult.error.errors.map(e => e.message).join(', ');
         toast({
@@ -655,13 +650,15 @@ export const useSupabaseFinance = () => {
       
       const transaction = {
         id: transactionId,
-        name: 'Retirada do Cofre',
+        name: `Retirada do Cofre: ${reason}`,
         amount: amount,
         category: 'vault_withdrawal',
         type: 'expense' as const,
         payment_type: 'debit',
         date: today,
         user_id: user.id,
+        reason: reason,
+        destination_type: destinationType,
       };
 
       const { error } = await supabase.from('transactions').insert(transaction);
@@ -672,20 +669,26 @@ export const useSupabaseFinance = () => {
         transactions: [
           {
             id: transactionId,
-            name: 'Retirada do Cofre',
+            name: `Retirada do Cofre: ${reason}`,
             amount: amount,
             category: 'vault_withdrawal',
             type: 'expense',
             paymentType: 'debit',
             date: today,
+            reason: reason,
+            destinationType: destinationType,
           } as Transaction,
           ...prev.transactions,
         ],
       }));
 
+      const message = destinationType === 'INCOME_TRANSFER' 
+        ? 'Valor retirado do Cofre e adicionado às Entradas!' 
+        : 'Valor retirado do Cofre (Uso Direto - não afeta orçamento)!';
+
       toast({
         title: 'Sucesso',
-        description: 'Valor retirado do Cofre e adicionado à conta principal!',
+        description: message,
       });
 
       return true;
