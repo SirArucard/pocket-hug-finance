@@ -21,7 +21,6 @@ import { Transaction, ExpenseCategory, IncomeCategory, PaymentType } from '@/typ
 import {
   categoryLabels,
   paymentTypeLabels,
-  getCurrentMonth,
 } from '@/lib/financeUtils';
 import { cn } from '@/lib/utils';
 
@@ -50,6 +49,7 @@ export const TransactionForm = ({ onSubmit }: TransactionFormProps) => {
 
   const incomeCategories: IncomeCategory[] = [
     'salary',
+    'extra_values',
     'extra',
     'food_voucher',
     'transport_voucher',

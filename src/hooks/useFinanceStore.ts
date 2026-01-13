@@ -14,6 +14,7 @@ const defaultState: FinanceState = {
       usedLimit: 0,
       closingDay: 15,
       dueDay: 25,
+      bestBuyDay: 7,
     },
   ],
   reservePercentage: 10,

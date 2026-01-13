@@ -54,8 +54,8 @@ const Index = () => {
   const currentMonth = getCurrentMonth();
   
   const { income, salaryIncome, expenses, fixedExpenses, vaultDeposits, vaultWithdrawals } = useMemo(
-    () => calculateMonthlyTotals(transactions, selectedMonth),
-    [transactions, selectedMonth]
+    () => calculateMonthlyTotals(transactions, selectedMonth, creditCards),
+    [transactions, selectedMonth, creditCards]
   );
 
   const vaultBalance = useMemo(
@@ -78,12 +78,11 @@ const Index = () => {
     reservePercentage
   );
   
-  // CORREÇÃO: Saldo e Entradas NÃO incluem tickets (já excluído no cálculo de income)
-  // income já exclui vouchers pois só conta salary e outras rendas não-voucher
-  const balance = salaryIncome - expenses;
+  // SALDO: ENTRADAS - SAÍDAS
+  const balance = income - expenses;
 
   // Calculate salary balance for invoice payment
-  const salaryBalance = salaryIncome - expenses;
+  const salaryBalance = income - expenses;
 
   const monthlyTransactions = transactions.filter((t) =>
     t.date.startsWith(selectedMonth)
@@ -168,7 +167,7 @@ const Index = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <SummaryCard
             title="Entradas"
-            value={formatCurrency(salaryIncome)}
+            value={formatCurrency(income)}
             icon={<ArrowUpCircle className="w-5 h-5" />}
             variant="income"
             privacyCategory="income"
@@ -204,7 +203,7 @@ const Index = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <SpendingLimitBar
             available={availableLimit}
-            total={salaryIncome}
+            total={income}
             reserve={reserve}
             reservePercentage={reservePercentage}
           />

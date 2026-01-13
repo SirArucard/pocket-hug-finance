@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       credit_cards: {
         Row: {
+          best_buy_day: number
           card_limit: number
           closing_day: number
           created_at: string
@@ -27,6 +28,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          best_buy_day?: number
           card_limit?: number
           closing_day?: number
           created_at?: string
@@ -38,6 +40,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          best_buy_day?: number
           card_limit?: number
           closing_day?: number
           created_at?: string
@@ -81,11 +84,13 @@ export type Database = {
           created_at: string
           current_installment: number | null
           date: string
+          destination_type: string | null
           id: string
           installments: number | null
           name: string
           parent_id: string | null
           payment_type: string | null
+          reason: string | null
           type: string
           updated_at: string
           user_id: string | null
@@ -96,11 +101,13 @@ export type Database = {
           created_at?: string
           current_installment?: number | null
           date?: string
+          destination_type?: string | null
           id?: string
           installments?: number | null
           name: string
           parent_id?: string | null
           payment_type?: string | null
+          reason?: string | null
           type: string
           updated_at?: string
           user_id?: string | null
@@ -111,11 +118,13 @@ export type Database = {
           created_at?: string
           current_installment?: number | null
           date?: string
+          destination_type?: string | null
           id?: string
           installments?: number | null
           name?: string
           parent_id?: string | null
           payment_type?: string | null
+          reason?: string | null
           type?: string
           updated_at?: string
           user_id?: string | null
