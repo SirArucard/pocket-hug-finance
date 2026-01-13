@@ -138,7 +138,6 @@ const Index = () => {
                     size="icon" 
                     className="h-6 w-6"
                     onClick={handleNextMonth}
-                    disabled={isCurrentMonth}
                   >
                     <ChevronRight className="w-4 h-4" />
                   </Button>
