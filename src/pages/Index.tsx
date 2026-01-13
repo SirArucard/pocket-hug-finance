@@ -53,7 +53,16 @@ const Index = () => {
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
   const currentMonth = getCurrentMonth();
   
-  const { income, salaryIncome, expenses, fixedExpenses, vaultDeposits, vaultWithdrawals } = useMemo(
+  // Alteração 1: Extraindo 'invoiceTotal' do cálculo
+  const { 
+    income, 
+    salaryIncome, 
+    expenses, 
+    fixedExpenses, 
+    vaultDeposits, 
+    vaultWithdrawals, 
+    invoiceTotal 
+  } = useMemo(
     () => calculateMonthlyTotals(transactions, selectedMonth, creditCards),
     [transactions, selectedMonth, creditCards]
   );
@@ -138,6 +147,7 @@ const Index = () => {
                     size="icon" 
                     className="h-6 w-6"
                     onClick={handleNextMonth}
+                    // Alteração 2: Removida a prop disabled={isCurrentMonth}
                   >
                     <ChevronRight className="w-4 h-4" />
                   </Button>
@@ -220,6 +230,8 @@ const Index = () => {
               onPayInvoice={payInvoice}
               vaultBalance={vaultBalance}
               salaryBalance={salaryBalance}
+              // Alteração 3: Passando o valor calculado da fatura do mês
+              invoiceAmount={invoiceTotal}
             />
           ))}
         </div>
