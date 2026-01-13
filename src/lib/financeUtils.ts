@@ -162,7 +162,7 @@ export const calculateMonthlyTotals = (
     .filter(t => t.type === 'expense' && t.paymentType === 'debit' && t.category !== 'vault_withdrawal')
     .reduce((sum, t) => sum + t.amount, 0);
   
-  // Crédito: buscar todas as transações de crédito e filtrar pela fatura do mês atual
+  // Crédito: buscar todas as transações de crédito e filtrar pela fatura do mês ATUAL
   const invoiceTotal = transactions
     .filter(t => {
       if (t.type !== 'expense' || t.paymentType !== 'credit') return false;
@@ -190,7 +190,7 @@ export const calculateMonthlyTotals = (
     foodVoucherExpenses,
     transportVoucherIncome,
     transportVoucherExpenses,
-    invoiceTotal, // Adicionado ao retorno para uso no Widget
+    invoiceTotal,
   };
 };
 
@@ -281,17 +281,20 @@ export const generateInstallmentTransactions = (
   return transactions;
 };
 
-// Calcula o limite usado baseado em transações de crédito da fatura do mês atual
+// MODIFICAÇÃO PRINCIPAL AQUI:
+// Calcula o limite usado somando a fatura atual E as próximas parcelas
+// (Tudo que tiver vencimento >= mês atual)
 export const calculateUsedLimit = (
   transactions: Transaction[], 
   bestBuyDay: number,
-  targetMonth: string
+  currentMonth: string
 ): number => {
   return transactions
     .filter((t) => {
       if (t.paymentType !== 'credit' || t.type !== 'expense') return false;
       const invoiceMonth = getInvoiceMonth(t.date, bestBuyDay);
-      return invoiceMonth === targetMonth;
+      // Soma se o mês da fatura for igual ou posterior ao mês atual
+      return invoiceMonth >= currentMonth;
     })
     .reduce((sum, t) => sum + t.amount, 0);
 };
