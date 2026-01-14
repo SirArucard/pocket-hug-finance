@@ -55,4 +55,15 @@ export interface FinanceState {
   transactions: Transaction[];
   creditCards: CreditCard[];
   reservePercentage: number;
+  recurringExpenses: RecurringExpense[]; // Adicionado aqui
+}
+
+// NOVA INTERFACE
+export interface RecurringExpense {
+  id: string;
+  name: string;
+  baseAmount: number;
+  category: ExpenseCategory;
+  isVariable: boolean;
+  active: boolean;
 }
