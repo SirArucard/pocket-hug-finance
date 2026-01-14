@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Transaction, CreditCard, FinanceState, VaultDestinationType } from '@/types/finance';
+import { Transaction, CreditCard, FinanceState, VaultDestinationType, ExpenseCategory } from '@/types/finance';
 import { generateInstallmentTransactions, generateId, getCurrentMonth, calculateUsedLimit } from '@/lib/financeUtils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -113,6 +113,7 @@ export const useSupabaseFinance = () => {
     transactions: [],
     creditCards: [],
     reservePercentage: 10,
+    recurringExpenses: [],
   });
   const [loading, setLoading] = useState(true);
   const [settingsId, setSettingsId] = useState<string | null>(null);
@@ -123,7 +124,7 @@ export const useSupabaseFinance = () => {
   useEffect(() => {
     const fetchData = async () => {
       if (!user) {
-        setState({ transactions: [], creditCards: [], reservePercentage: 10 });
+        setState({ transactions: [], creditCards: [], reservePercentage: 10, recurringExpenses: [] });
         setLoading(false);
         return;
       }
@@ -131,19 +132,29 @@ export const useSupabaseFinance = () => {
       try {
         setLoading(true);
         
-        const [transactionsRes, creditCardsRes, settingsRes] = await Promise.all([
+        const [transactionsRes, creditCardsRes, settingsRes, recurringRes] = await Promise.all([
           supabase.from('transactions').select('*').eq('user_id', user.id).order('date', { ascending: false }),
           supabase.from('credit_cards').select('*').eq('user_id', user.id),
           supabase.from('settings').select('*').eq('user_id', user.id).limit(1).maybeSingle(),
+          supabase.from('recurring_expenses').select('*').eq('user_id', user.id).eq('active', true),
         ]);
 
         if (transactionsRes.error) throw transactionsRes.error;
         if (creditCardsRes.error) throw creditCardsRes.error;
         if (settingsRes.error) throw settingsRes.error;
+        if (recurringRes.error) throw recurringRes.error;
 
         const transactions = (transactionsRes.data || []).map(mapDbToTransaction);
         let creditCards = (creditCardsRes.data || []).map(mapDbToCreditCard);
         let reservePercentage = settingsRes.data?.reserve_percentage ?? 10;
+        const recurringExpenses = (recurringRes.data || []).map((r) => ({
+          id: r.id,
+          name: r.name,
+          baseAmount: Number(r.base_amount) || 0,
+          category: r.category as ExpenseCategory,
+          isVariable: r.is_variable,
+          active: r.active,
+        }));
         
         if (settingsRes.data) {
           setSettingsId(settingsRes.data.id);
@@ -198,6 +209,7 @@ export const useSupabaseFinance = () => {
           transactions,
           creditCards,
           reservePercentage,
+          recurringExpenses,
         });
       } catch (error) {
         if (import.meta.env.DEV) {
