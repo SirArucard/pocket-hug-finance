@@ -39,7 +39,7 @@ const Index = () => {
     transactions,
     creditCards,
     reservePercentage,
-    recurringExpenses, // <--- Pegando do hook
+    recurringExpenses,
     loading,
     addTransaction,
     removeTransaction,
@@ -48,6 +48,9 @@ const Index = () => {
     payInvoice,
     transferToVault,
     withdrawFromVault,
+    addRecurringExpense,
+    updateRecurringExpense,
+    removeRecurringExpense,
   } = useSupabaseFinance();
 
   const { signOut } = useAuth();
@@ -171,6 +174,9 @@ const Index = () => {
              recurringExpenses={recurringExpenses}
              currentTransactions={monthlyTransactions}
              onAddTransaction={addTransaction}
+             onAddRecurringExpense={addRecurringExpense}
+             onUpdateRecurringExpense={updateRecurringExpense}
+             onRemoveRecurringExpense={removeRecurringExpense}
           />
           <div className="lg:col-span-2 space-y-4">
              <SpendingLimitBar

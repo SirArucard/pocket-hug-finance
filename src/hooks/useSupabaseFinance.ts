@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Transaction, CreditCard, FinanceState, VaultDestinationType, ExpenseCategory } from '@/types/finance';
+import { Transaction, CreditCard, FinanceState, VaultDestinationType, ExpenseCategory, RecurringExpense } from '@/types/finance';
 import { generateInstallmentTransactions, generateId, getCurrentMonth, calculateUsedLimit } from '@/lib/financeUtils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -52,6 +52,13 @@ const creditCardUpdateSchema = z.object({
 });
 
 const reservePercentageSchema = z.number().int().min(0).max(100);
+
+const recurringExpenseSchema = z.object({
+  name: z.string().trim().min(1, 'Nome é obrigatório').max(200, 'Nome muito longo'),
+  baseAmount: z.number().min(0, 'Valor deve ser zero ou positivo').max(1000000000, 'Valor muito alto'),
+  category: z.string().min(1, 'Categoria é obrigatória'),
+  isVariable: z.boolean(),
+});
 
 interface DbTransaction {
   id: string;
@@ -714,6 +721,139 @@ export const useSupabaseFinance = () => {
     }
   }, [toast, user]);
 
+  const addRecurringExpense = useCallback(async (expense: Omit<RecurringExpense, 'id' | 'active'>) => {
+    try {
+      const validationResult = recurringExpenseSchema.safeParse(expense);
+      if (!validationResult.success) {
+        const errorMessage = validationResult.error.errors.map(e => e.message).join(', ');
+        toast({
+          title: 'Erro de validação',
+          description: errorMessage,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (!user) {
+        toast({
+          title: 'Erro',
+          description: 'Você precisa estar logado.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const newId = generateId();
+      const { error } = await supabase.from('recurring_expenses').insert({
+        id: newId,
+        name: expense.name,
+        base_amount: expense.baseAmount,
+        category: expense.category,
+        is_variable: expense.isVariable,
+        user_id: user.id,
+      });
+
+      if (error) throw error;
+
+      const newExpense: RecurringExpense = {
+        id: newId,
+        name: expense.name,
+        baseAmount: expense.baseAmount,
+        category: expense.category as ExpenseCategory,
+        isVariable: expense.isVariable,
+        active: true,
+      };
+
+      setState((prev) => ({
+        ...prev,
+        recurringExpenses: [...prev.recurringExpenses, newExpense],
+      }));
+
+      toast({
+        title: 'Sucesso',
+        description: 'Conta recorrente adicionada!',
+      });
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: 'Falha ao adicionar conta recorrente.',
+        variant: 'destructive',
+      });
+    }
+  }, [toast, user]);
+
+  const updateRecurringExpense = useCallback(async (id: string, updates: Partial<RecurringExpense>) => {
+    try {
+      if (!user) {
+        toast({
+          title: 'Erro',
+          description: 'Você precisa estar logado.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const dbUpdates: Record<string, unknown> = {};
+      if (updates.name !== undefined) dbUpdates.name = updates.name;
+      if (updates.baseAmount !== undefined) dbUpdates.base_amount = updates.baseAmount;
+      if (updates.category !== undefined) dbUpdates.category = updates.category;
+      if (updates.isVariable !== undefined) dbUpdates.is_variable = updates.isVariable;
+      if (updates.active !== undefined) dbUpdates.active = updates.active;
+
+      const { error } = await supabase
+        .from('recurring_expenses')
+        .update(dbUpdates)
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setState((prev) => ({
+        ...prev,
+        recurringExpenses: prev.recurringExpenses.map((e) =>
+          e.id === id ? { ...e, ...updates } : e
+        ),
+      }));
+
+      toast({
+        title: 'Sucesso',
+        description: 'Conta recorrente atualizada!',
+      });
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: 'Falha ao atualizar conta recorrente.',
+        variant: 'destructive',
+      });
+    }
+  }, [toast, user]);
+
+  const removeRecurringExpense = useCallback(async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('recurring_expenses')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setState((prev) => ({
+        ...prev,
+        recurringExpenses: prev.recurringExpenses.filter((e) => e.id !== id),
+      }));
+
+      toast({
+        title: 'Sucesso',
+        description: 'Conta recorrente removida!',
+      });
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: 'Falha ao remover conta recorrente.',
+        variant: 'destructive',
+      });
+    }
+  }, [toast]);
+
   return {
     ...state,
     loading,
@@ -724,5 +864,8 @@ export const useSupabaseFinance = () => {
     payInvoice,
     transferToVault,
     withdrawFromVault,
+    addRecurringExpense,
+    updateRecurringExpense,
+    removeRecurringExpense,
   };
 };
