@@ -53,6 +53,42 @@ export type Database = {
         }
         Relationships: []
       }
+      recurring_expenses: {
+        Row: {
+          active: boolean
+          base_amount: number | null
+          category: string
+          created_at: string
+          id: string
+          is_variable: boolean
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          base_amount?: number | null
+          category: string
+          created_at?: string
+          id?: string
+          is_variable?: boolean
+          name: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          active?: boolean
+          base_amount?: number | null
+          category?: string
+          created_at?: string
+          id?: string
+          is_variable?: boolean
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       settings: {
         Row: {
           created_at: string
