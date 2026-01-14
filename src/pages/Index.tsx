@@ -20,6 +20,7 @@ import { ReserveWidget } from '@/components/ReserveWidget';
 import { VaultWidget } from '@/components/VaultWidget';
 import { VoucherCards } from '@/components/VoucherCards';
 import { PrivacyToggle } from '@/components/PrivacyToggle';
+import { RecurringBillsWidget } from '@/components/RecurringBillsWidget'; // <--- Importado
 import { Button } from '@/components/ui/button';
 import {
   formatCurrency,
@@ -38,6 +39,7 @@ const Index = () => {
     transactions,
     creditCards,
     reservePercentage,
+    recurringExpenses, // <--- Pegando do hook
     loading,
     addTransaction,
     removeTransaction,
@@ -51,9 +53,7 @@ const Index = () => {
   const { signOut } = useAuth();
 
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
-  const currentMonth = getCurrentMonth();
   
-  // Alteração 1: Extraindo 'invoiceTotal' do cálculo
   const { 
     income, 
     salaryIncome, 
@@ -78,7 +78,6 @@ const Index = () => {
   );
 
   const variableExpenses = expenses - fixedExpenses;
-  // Reserve is based ONLY on salary income
   const reserve = salaryIncome * (reservePercentage / 100);
   const availableLimit = calculateAvailableLimit(
     salaryIncome,
@@ -87,10 +86,7 @@ const Index = () => {
     reservePercentage
   );
   
-  // SALDO: ENTRADAS - SAÍDAS
   const balance = income - expenses;
-
-  // Calculate salary balance for invoice payment
   const salaryBalance = income - expenses;
 
   const monthlyTransactions = transactions.filter((t) =>
@@ -104,8 +100,6 @@ const Index = () => {
   const handleNextMonth = () => {
     setSelectedMonth(getNextMonth(selectedMonth));
   };
-
-  const isCurrentMonth = selectedMonth === currentMonth;
 
   if (loading) {
     return (
@@ -147,7 +141,6 @@ const Index = () => {
                     size="icon" 
                     className="h-6 w-6"
                     onClick={handleNextMonth}
-                    // Alteração 2: Removida a prop disabled={isCurrentMonth}
                   >
                     <ChevronRight className="w-4 h-4" />
                   </Button>
@@ -171,6 +164,42 @@ const Index = () => {
           foodVoucherBalance={foodVoucherBalance}
           transportVoucherBalance={transportVoucherBalance}
         />
+
+        {/* CONTAS FIXAS + LIMITES */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <RecurringBillsWidget 
+             recurringExpenses={recurringExpenses}
+             currentTransactions={monthlyTransactions}
+             onAddTransaction={addTransaction}
+          />
+          <div className="lg:col-span-2 space-y-4">
+             <SpendingLimitBar
+                available={availableLimit}
+                total={income}
+                reserve={reserve}
+                reservePercentage={reservePercentage}
+              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <VaultWidget
+                  balance={vaultBalance}
+                  monthlyDeposits={vaultDeposits}
+                  monthlyWithdrawals={vaultWithdrawals}
+                  onWithdraw={withdrawFromVault}
+                />
+                {creditCards.map((card) => (
+                  <CreditCardWidget
+                    key={card.id}
+                    card={card}
+                    onUpdate={updateCreditCard}
+                    onPayInvoice={payInvoice}
+                    vaultBalance={vaultBalance}
+                    salaryBalance={salaryBalance}
+                    invoiceAmount={invoiceTotal}
+                  />
+                ))}
+              </div>
+          </div>
+        </div>
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -206,34 +235,6 @@ const Index = () => {
             privacyCategory="balance"
             privacyLabel="Saldo"
           />
-        </div>
-
-        {/* Spending Limit + Credit Card */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <SpendingLimitBar
-            available={availableLimit}
-            total={income}
-            reserve={reserve}
-            reservePercentage={reservePercentage}
-          />
-          <VaultWidget
-            balance={vaultBalance}
-            monthlyDeposits={vaultDeposits}
-            monthlyWithdrawals={vaultWithdrawals}
-            onWithdraw={withdrawFromVault}
-          />
-          {creditCards.map((card) => (
-            <CreditCardWidget
-              key={card.id}
-              card={card}
-              onUpdate={updateCreditCard}
-              onPayInvoice={payInvoice}
-              vaultBalance={vaultBalance}
-              salaryBalance={salaryBalance}
-              // Alteração 3: Passando o valor calculado da fatura do mês
-              invoiceAmount={invoiceTotal}
-            />
-          ))}
         </div>
 
         {/* Reserve Widget */}
