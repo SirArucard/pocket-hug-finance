@@ -180,13 +180,19 @@ export const RecurringBillsWidget = ({
     return paidA - paidB;
   });
 
+  // Calculate total of base amounts
+  const totalFixedExpenses = recurringExpenses.reduce((sum, exp) => sum + (exp.baseAmount || 0), 0);
+
   return (
     <div className="gradient-card rounded-xl p-5 text-white space-y-4 animate-fade-in">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold flex items-center gap-2">
-          <AlertCircle className="w-5 h-5 text-blue-300" />
-          Contas Fixas do Mês
-        </h3>
+        <div>
+          <h3 className="font-semibold flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-blue-300" />
+            Contas Fixas do Mês
+          </h3>
+          <p className="text-lg font-bold mt-1">{formatCurrency(totalFixedExpenses)}</p>
+        </div>
         <div className="flex items-center gap-2">
           <span className="text-xs bg-white/20 px-2 py-1 rounded-full">
             {recurringExpenses.filter(e => isPaid(e.name)).length}/{recurringExpenses.length} Pagas
