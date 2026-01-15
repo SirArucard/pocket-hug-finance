@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
   Wallet,
-  TrendingDown,
   ArrowUpCircle,
   ArrowDownCircle,
   ChevronLeft,
@@ -208,7 +207,7 @@ const Index = () => {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <SummaryCard
             title="Entradas"
             value={formatCurrency(income)}
@@ -224,14 +223,6 @@ const Index = () => {
             variant="expense"
             privacyCategory="expenses"
             privacyLabel="Saídas"
-          />
-          <SummaryCard
-            title="Gastos Fixos"
-            value={formatCurrency(fixedExpenses)}
-            icon={<TrendingDown className="w-5 h-5" />}
-            variant="neutral"
-            privacyCategory="fixed"
-            privacyLabel="Gastos Fixos"
           />
           <SummaryCard
             title="Saldo"
